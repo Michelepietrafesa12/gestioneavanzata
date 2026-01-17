@@ -274,6 +274,34 @@ class AdminProductAdvancedController extends ModuleAdminController
     }
 
     /**
+     * Sincronizza lo stock del prodotto principale con la somma delle varianti
+     * Da chiamare dopo ogni modifica dello stock di una variante
+     */
+    private function syncProductStock($idProduct, $shopId)
+    {
+        // Verifica se il prodotto ha varianti
+        $hasVariants = (int) Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_attribute WHERE id_product = ' . (int)$idProduct
+        );
+
+        if ($hasVariants > 0) {
+            // Calcola la somma degli stock di tutte le varianti
+            $totalStock = (int) Db::getInstance()->getValue(
+                'SELECT SUM(sa.quantity)
+                 FROM ' . _DB_PREFIX_ . 'stock_available sa
+                 WHERE sa.id_product = ' . (int)$idProduct . '
+                 AND sa.id_product_attribute > 0
+                 AND sa.id_shop = ' . (int)$shopId
+            );
+
+            // Aggiorna lo stock del prodotto principale (id_product_attribute = 0)
+            Db::getInstance()->update('stock_available', [
+                'quantity' => $totalStock,
+            ], 'id_product = ' . (int)$idProduct . ' AND id_product_attribute = 0 AND id_shop = ' . (int)$shopId);
+        }
+    }
+
+    /**
      * OTTIMIZZATO: Recupera TUTTE le aliquote IVA in una sola query
      * Restituisce array [id_tax_rules_group => rate]
      */
@@ -464,10 +492,15 @@ class AdminProductAdvancedController extends ModuleAdminController
                 // Aggiorna stock nella tabella stock_available
                 $quantity = (int) $value;
                 $shopId = (int) $this->context->shop->id;
-                
+
                 $result = Db::getInstance()->update('stock_available', [
                     'quantity' => $quantity,
                 ], 'id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute . ' AND id_shop = ' . $shopId);
+
+                // Se è una variante, sincronizza lo stock del prodotto principale
+                if ($idProductAttribute > 0) {
+                    $this->syncProductStock($idProduct, $shopId);
+                }
             } elseif ($field === 'price' && $idProductAttribute == 0) {
                 // Aggiorna prezzo base del prodotto (il valore ricevuto è IVA inclusa)
                 $priceTaxIncl = round((float) $value, 6);
@@ -549,13 +582,14 @@ class AdminProductAdvancedController extends ModuleAdminController
 
         $updated = 0;
         $shopId = (int) $this->context->shop->id;
+        $productsToSync = []; // Prodotti con varianti modificate da sincronizzare
 
         foreach ($changes as $key => $fields) {
             // Il key può essere "123" (prodotto) o "123_456" (prodotto_variante)
             $parts = explode('_', $key);
             $idProduct = (int) $parts[0];
             $idProductAttribute = isset($parts[1]) ? (int) $parts[1] : 0;
-            
+
             if (!$idProduct) continue;
 
             foreach ($fields as $field => $value) {
@@ -566,6 +600,11 @@ class AdminProductAdvancedController extends ModuleAdminController
                             'quantity' => $quantity,
                         ], 'id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute . ' AND id_shop = ' . $shopId);
                         $updated++;
+
+                        // Segna il prodotto per la sincronizzazione se è una variante
+                        if ($idProductAttribute > 0) {
+                            $productsToSync[$idProduct] = true;
+                        }
                     }
                 } elseif ($field === 'price' && $idProductAttribute == 0) {
                     $priceTaxIncl = round((float) $value, 6);
@@ -607,6 +646,11 @@ class AdminProductAdvancedController extends ModuleAdminController
                     }
                 }
             }
+        }
+
+        // Sincronizza lo stock dei prodotti principali per tutte le varianti modificate
+        foreach ($productsToSync as $idProduct => $flag) {
+            $this->syncProductStock($idProduct, $shopId);
         }
 
         die(json_encode([
