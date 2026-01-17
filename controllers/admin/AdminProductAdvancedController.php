@@ -59,9 +59,9 @@ class AdminProductAdvancedController extends ModuleAdminController
     public function setMedia($isNewTheme = false)
     {
         parent::setMedia($isNewTheme);
-        
+
+        // Carica solo CSS - il JS è inline nel template per evitare problemi di configurazione
         $this->addCSS(_PS_MODULE_DIR_ . 'productadvancedmanager/views/css/admin.css');
-        $this->addJS(_PS_MODULE_DIR_ . 'productadvancedmanager/views/js/admin.js');
     }
 
     public function initContent()

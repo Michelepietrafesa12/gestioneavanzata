@@ -86,10 +86,8 @@ class ProductAdvancedManager extends Module
 
     public function hookDisplayBackOfficeHeader()
     {
-        if (Tools::getValue('controller') === 'AdminProductAdvanced') {
-            $this->context->controller->addCSS($this->_path . 'views/css/admin.css');
-            $this->context->controller->addJS($this->_path . 'views/js/admin.js');
-        }
+        // CSS/JS vengono caricati dal controller via setMedia()
+        // Il JS principale è inline nel template per evitare problemi di configurazione
     }
 
     /**
