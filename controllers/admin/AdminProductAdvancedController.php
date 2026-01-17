@@ -213,22 +213,27 @@ class AdminProductAdvancedController extends ModuleAdminController
         $results = Db::getInstance()->executeS($sql);
 
         if ($results) {
+            // OTTIMIZZATO: Recupera tutte le aliquote IVA in una sola query
+            $taxRatesCache = $this->getAllTaxRates();
+
             foreach ($results as &$row) {
                 // Aggiungi conteggio combinazioni
-                $row['combinations_count'] = isset($combinationsCount[(int)$row['id_product']]) 
-                    ? $combinationsCount[(int)$row['id_product']] 
+                $row['combinations_count'] = isset($combinationsCount[(int)$row['id_product']])
+                    ? $combinationsCount[(int)$row['id_product']]
                     : 0;
-                
+
                 // Aggiungi conteggio combinazioni OOS
-                $row['combinations_oos'] = isset($combinationsOOS[(int)$row['id_product']]) 
-                    ? $combinationsOOS[(int)$row['id_product']] 
+                $row['combinations_oos'] = isset($combinationsOOS[(int)$row['id_product']])
+                    ? $combinationsOOS[(int)$row['id_product']]
                     : 0;
-                
-                // Calcola prezzo con IVA
-                $taxRate = $this->getTaxRate((int)$row['id_tax_rules_group']);
+
+                // Calcola prezzo con IVA (usando la cache)
+                $taxRate = isset($taxRatesCache[(int)$row['id_tax_rules_group']])
+                    ? $taxRatesCache[(int)$row['id_tax_rules_group']]
+                    : 0;
                 $row['price_tax_incl'] = (float)$row['price'] * (1 + $taxRate / 100);
                 $row['tax_rate'] = $taxRate;
-                
+
                 if ($row['id_image']) {
                     $row['image_url'] = $this->context->link->getImageLink(
                         Tools::str2url($row['name']),
@@ -245,7 +250,7 @@ class AdminProductAdvancedController extends ModuleAdminController
     }
 
     /**
-     * Ottiene l'aliquota IVA per un tax rules group
+     * Ottiene l'aliquota IVA per un tax rules group (usato per singoli aggiornamenti AJAX)
      */
     private function getTaxRate($idTaxRulesGroup)
     {
@@ -254,7 +259,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         }
 
         $idCountry = (int) Configuration::get('PS_COUNTRY_DEFAULT');
-        
+
         $sql = new DbQuery();
         $sql->select('t.rate');
         $sql->from('tax_rule', 'tr');
@@ -262,10 +267,38 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->where('tr.id_tax_rules_group = ' . (int)$idTaxRulesGroup);
         $sql->where('tr.id_country = ' . (int)$idCountry);
         $sql->orderBy('tr.id_tax_rule ASC');
-        
+
         $rate = Db::getInstance()->getValue($sql);
-        
+
         return $rate ? (float)$rate : 0;
+    }
+
+    /**
+     * OTTIMIZZATO: Recupera TUTTE le aliquote IVA in una sola query
+     * Restituisce array [id_tax_rules_group => rate]
+     */
+    private function getAllTaxRates()
+    {
+        $idCountry = (int) Configuration::get('PS_COUNTRY_DEFAULT');
+
+        $sql = '
+            SELECT tr.id_tax_rules_group, t.rate
+            FROM ' . _DB_PREFIX_ . 'tax_rule tr
+            INNER JOIN ' . _DB_PREFIX_ . 'tax t ON t.id_tax = tr.id_tax
+            WHERE tr.id_country = ' . (int)$idCountry . '
+            GROUP BY tr.id_tax_rules_group
+        ';
+
+        $results = Db::getInstance()->executeS($sql);
+
+        $cache = [];
+        if ($results) {
+            foreach ($results as $row) {
+                $cache[(int)$row['id_tax_rules_group']] = (float)$row['rate'];
+            }
+        }
+
+        return $cache;
     }
 
     private function getTotalProducts($search = '', $categoryId = 0, $stockFilter = '', $activeFilter = '')
@@ -343,13 +376,14 @@ class AdminProductAdvancedController extends ModuleAdminController
 
     /**
      * Ottiene le combinazioni di un prodotto via AJAX
+     * OTTIMIZZATO: Usa GROUP_CONCAT invece di N+1 query
      */
     public function ajaxProcessGetCombinations()
     {
         header('Content-Type: application/json');
 
         $idProduct = (int) Tools::getValue('id_product');
-        
+
         if (!$idProduct) {
             die(json_encode(['success' => false, 'message' => $this->l('ID prodotto mancante')]));
         }
@@ -357,48 +391,38 @@ class AdminProductAdvancedController extends ModuleAdminController
         $langId = (int) $this->context->language->id;
         $shopId = (int) $this->context->shop->id;
 
-        // Query semplice per verificare se esistono combinazioni
-        $checkSql = 'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_attribute WHERE id_product = ' . (int)$idProduct;
-        $count = (int) Db::getInstance()->getValue($checkSql);
-
-        // Query per ottenere le combinazioni
+        // Query ottimizzata: recupera combinazioni + nomi attributi in una sola query
         $sql = new DbQuery();
         $sql->select('pa.id_product_attribute, pa.reference, pa.price as price_impact');
         $sql->select('IFNULL(sa.quantity, 0) as quantity');
+        // GROUP_CONCAT per ottenere tutti i nomi attributi in una sola query
+        $sql->select('GROUP_CONCAT(DISTINCT al.name ORDER BY agl.id_attribute_group ASC SEPARATOR " - ") as attribute_name');
         $sql->from('product_attribute', 'pa');
         $sql->leftJoin('stock_available', 'sa', 'sa.id_product = pa.id_product AND sa.id_product_attribute = pa.id_product_attribute AND sa.id_shop = ' . (int)$shopId);
+        // JOIN per gli attributi
+        $sql->leftJoin('product_attribute_combination', 'pac', 'pac.id_product_attribute = pa.id_product_attribute');
+        $sql->leftJoin('attribute', 'a', 'a.id_attribute = pac.id_attribute');
+        $sql->leftJoin('attribute_lang', 'al', 'al.id_attribute = a.id_attribute AND al.id_lang = ' . (int)$langId);
+        $sql->leftJoin('attribute_group_lang', 'agl', 'agl.id_attribute_group = a.id_attribute_group AND agl.id_lang = ' . (int)$langId);
         $sql->where('pa.id_product = ' . (int)$idProduct);
+        $sql->groupBy('pa.id_product_attribute');
         $sql->orderBy('pa.id_product_attribute ASC');
 
         $combinations = Db::getInstance()->executeS($sql);
 
+        // Fallback per combinazioni senza nome attributo
         if ($combinations) {
             foreach ($combinations as &$comb) {
-                // Ottieni i nomi degli attributi per questa combinazione
-                $attrSql = new DbQuery();
-                $attrSql->select('al.name');
-                $attrSql->from('product_attribute_combination', 'pac');
-                $attrSql->innerJoin('attribute', 'a', 'a.id_attribute = pac.id_attribute');
-                $attrSql->innerJoin('attribute_lang', 'al', 'al.id_attribute = a.id_attribute AND al.id_lang = ' . (int)$langId);
-                $attrSql->where('pac.id_product_attribute = ' . (int)$comb['id_product_attribute']);
-                
-                $attributes = Db::getInstance()->executeS($attrSql);
-                $attrNames = [];
-                if ($attributes) {
-                    foreach ($attributes as $attr) {
-                        $attrNames[] = $attr['name'];
-                    }
+                if (empty($comb['attribute_name'])) {
+                    $comb['attribute_name'] = 'Variante #' . $comb['id_product_attribute'];
                 }
-                $comb['attribute_name'] = !empty($attrNames) ? implode(' - ', $attrNames) : ('Variante #' . $comb['id_product_attribute']);
             }
         }
 
         die(json_encode([
             'success' => true,
             'combinations' => $combinations ?: [],
-            'id_product' => $idProduct,
-            'debug_count' => $count,
-            'debug_sql' => $sql->build()
+            'id_product' => $idProduct
         ]));
     }
 
