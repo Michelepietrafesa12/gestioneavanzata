@@ -1,0 +1,11 @@
+⚠️ Alert Stock Esaurito
+
+Ciao,
+
+Il controllo automatico ha rilevato {total_count} prodotti/varianti a stock 0 su {shop_name}.
+
+Accedi al Back Office per verificare:
+{shop_url}
+
+---
+Questo è un messaggio automatico generato dal modulo Product Advanced Manager.
