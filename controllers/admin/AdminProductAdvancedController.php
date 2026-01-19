@@ -148,21 +148,27 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->leftJoin('category_lang', 'cl', 'cl.id_category = p.id_category_default AND cl.id_lang = ' . (int)$langId . ' AND cl.id_shop = ' . (int)$shopId);
         $sql->leftJoin('image', 'i', 'i.id_product = p.id_product AND i.cover = 1');
 
-        // Conta combinazioni separatamente
+        // Conta combinazioni separatamente (filtrando per shop)
         $combinationsCount = [];
-        $countSql = 'SELECT id_product, COUNT(*) as cnt FROM ' . _DB_PREFIX_ . 'product_attribute GROUP BY id_product';
+        $countSql = 'SELECT pa.id_product, COUNT(*) as cnt
+                     FROM ' . _DB_PREFIX_ . 'product_attribute pa
+                     INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
+                         ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
+                     GROUP BY pa.id_product';
         $countResults = Db::getInstance()->executeS($countSql);
         if ($countResults) {
             foreach ($countResults as $row) {
                 $combinationsCount[(int)$row['id_product']] = (int)$row['cnt'];
             }
         }
-        
-        // Conta combinazioni a stock 0 per ogni prodotto
+
+        // Conta combinazioni a stock 0 per ogni prodotto (filtrando per shop)
         $combinationsOOS = [];
-        $oosSql = 'SELECT pa.id_product, COUNT(*) as cnt 
+        $oosSql = 'SELECT pa.id_product, COUNT(*) as cnt
                    FROM ' . _DB_PREFIX_ . 'product_attribute pa
-                   INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa 
+                   INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
+                       ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
+                   INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa
                        ON pa.id_product_attribute = sa.id_product_attribute AND sa.id_shop = ' . (int)$shopId . '
                    WHERE sa.quantity = 0
                    GROUP BY pa.id_product';
@@ -426,6 +432,8 @@ class AdminProductAdvancedController extends ModuleAdminController
         // GROUP_CONCAT per ottenere tutti i nomi attributi in una sola query
         $sql->select('GROUP_CONCAT(DISTINCT al.name ORDER BY agl.id_attribute_group ASC SEPARATOR " - ") as attribute_name');
         $sql->from('product_attribute', 'pa');
+        // Filtra per shop
+        $sql->innerJoin('product_attribute_shop', 'pas', 'pas.id_product_attribute = pa.id_product_attribute AND pas.id_shop = ' . (int)$shopId);
         $sql->leftJoin('stock_available', 'sa', 'sa.id_product = pa.id_product AND sa.id_product_attribute = pa.id_product_attribute AND sa.id_shop = ' . (int)$shopId);
         // JOIN per gli attributi
         $sql->leftJoin('product_attribute_combination', 'pac', 'pac.id_product_attribute = pa.id_product_attribute');
