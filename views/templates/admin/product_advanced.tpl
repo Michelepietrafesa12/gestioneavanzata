@@ -28,11 +28,11 @@
             <input type="hidden" name="controller" value="AdminProductAdvanced">
             <input type="hidden" name="token" value="{$token|escape:'html':'UTF-8'}">
             
-            <div class="row" style="margin-bottom: 15px;">
+            <div class="row" style="margin-bottom: 10px;">
                 <div class="col-md-3">
                     <div class="input-group">
-                        <input type="text" name="search" class="form-control" 
-                               placeholder="{l s='Cerca per nome, riferimento o ID...' mod='productadvancedmanager'}" 
+                        <input type="text" name="search" class="form-control"
+                               placeholder="{l s='Cerca per nome, riferimento o ID...' mod='productadvancedmanager'}"
                                value="{$search|escape:'html':'UTF-8'}">
                         <span class="input-group-btn">
                             <button class="btn btn-default" type="submit">
@@ -80,16 +80,28 @@
                     </button>
                 </div>
             </div>
+            <div class="row" style="margin-bottom: 10px;">
+                <div class="col-md-3">
+                    <select name="expiration_filter" class="form-control" onchange="this.form.submit()">
+                        <option value="">{l s='Tutte le scadenze' mod='productadvancedmanager'}</option>
+                        <option value="expired"{if $expiration_filter == 'expired'} selected{/if}>{l s='Scaduti' mod='productadvancedmanager'}</option>
+                        <option value="30"{if $expiration_filter == '30'} selected{/if}>{l s='In scadenza (30 gg)' mod='productadvancedmanager'}</option>
+                        <option value="90"{if $expiration_filter == '90'} selected{/if}>{l s='In scadenza (90 gg)' mod='productadvancedmanager'}</option>
+                        <option value="has_date"{if $expiration_filter == 'has_date'} selected{/if}>{l s='Con data scadenza' mod='productadvancedmanager'}</option>
+                        <option value="no_date"{if $expiration_filter == 'no_date'} selected{/if}>{l s='Senza data scadenza' mod='productadvancedmanager'}</option>
+                    </select>
+                </div>
+            </div>
             
             {* Filtro rapido per stock 0 attivi *}
-            {if $stock_filter != '0' || $active_filter != '1'}
+            {if $stock_filter != '0' || $active_filter != '1' || $expiration_filter != ''}
             <div class="row" style="margin-bottom:10px;">
                 <div class="col-md-12">
                     <a href="index.php?controller=AdminProductAdvanced&token={$token|escape:'html':'UTF-8'}&stock_filter=0&active_filter=1" class="btn btn-xs btn-danger">
                         <i class="icon-warning"></i> {l s='Mostra prodotti/varianti ATTIVI a Stock 0' mod='productadvancedmanager'}
                         {if $out_of_stock_count > 0}<span class="badge">{$out_of_stock_count}</span>{/if}
                     </a>
-                    {if $stock_filter != '' || $active_filter != '' || $search != '' || $category_filter > 0}
+                    {if $stock_filter != '' || $active_filter != '' || $expiration_filter != '' || $search != '' || $category_filter > 0}
                     <a href="index.php?controller=AdminProductAdvanced&token={$token|escape:'html':'UTF-8'}" class="btn btn-xs btn-default">
                         <i class="icon-remove"></i> {l s='Reset filtri' mod='productadvancedmanager'}
                     </a>
@@ -231,17 +243,17 @@
                 <div class="col-md-6 text-right">
                     <ul class="pagination" style="margin: 0;">
                         {if $current_page > 1}
-                            <li><a href="{$ajax_url}&page=1{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-double-left"></i></a></li>
-                            <li><a href="{$ajax_url}&page={$current_page - 1}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-left"></i></a></li>
+                            <li><a href="{$ajax_url}&page=1{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $expiration_filter}&expiration_filter={$expiration_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-double-left"></i></a></li>
+                            <li><a href="{$ajax_url}&page={$current_page - 1}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $expiration_filter}&expiration_filter={$expiration_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-left"></i></a></li>
                         {/if}
                         {assign var="start" value=max(1, $current_page - 2)}
                         {assign var="end" value=min($total_pages, $current_page + 2)}
                         {for $p=$start to $end}
-                            <li{if $p == $current_page} class="active"{/if}><a href="{$ajax_url}&page={$p}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}">{$p}</a></li>
+                            <li{if $p == $current_page} class="active"{/if}><a href="{$ajax_url}&page={$p}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $expiration_filter}&expiration_filter={$expiration_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}">{$p}</a></li>
                         {/for}
                         {if $current_page < $total_pages}
-                            <li><a href="{$ajax_url}&page={$current_page + 1}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-right"></i></a></li>
-                            <li><a href="{$ajax_url}&page={$total_pages}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-double-right"></i></a></li>
+                            <li><a href="{$ajax_url}&page={$current_page + 1}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $expiration_filter}&expiration_filter={$expiration_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-right"></i></a></li>
+                            <li><a href="{$ajax_url}&page={$total_pages}{if $search}&search={$search|escape:'url'}{/if}{if $category_filter > 0}&category={$category_filter}{/if}{if $stock_filter}&stock_filter={$stock_filter}{/if}{if $active_filter}&active_filter={$active_filter}{/if}{if $expiration_filter}&expiration_filter={$expiration_filter}{/if}{if $per_page != 50}&per_page={$per_page}{/if}{if $order_by != 'id_product'}&order_by={$order_by}{/if}{if $order_way != 'DESC'}&order_way={$order_way}{/if}"><i class="icon-angle-double-right"></i></a></li>
                         {/if}
                     </ul>
                 </div>

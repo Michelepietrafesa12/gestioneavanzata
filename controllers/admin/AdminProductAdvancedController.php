@@ -107,17 +107,18 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Nuovi filtri
         $stockFilter = Tools::getValue('stock_filter', ''); // '', '0', 'low'
         $activeFilter = Tools::getValue('active_filter', ''); // '', '1', '0'
+        $expirationFilter = Tools::getValue('expiration_filter', ''); // '', 'expired', '30', '90', 'no_date', 'has_date'
 
         // Validazione
-        $allowedOrderBy = ['id_product', 'name', 'reference', 'weight', 'width', 'height', 'depth', 'quantity'];
+        $allowedOrderBy = ['id_product', 'name', 'reference', 'weight', 'width', 'height', 'depth', 'quantity', 'expiration_date'];
         if (!in_array($orderBy, $allowedOrderBy)) {
             $orderBy = 'id_product';
         }
         $orderWay = strtoupper($orderWay) === 'ASC' ? 'ASC' : 'DESC';
 
         // Dati
-        $products = $this->getProducts($page, $perPage, $search, $categoryFilter, $orderBy, $orderWay, $stockFilter, $activeFilter);
-        $totalProducts = $this->getTotalProducts($search, $categoryFilter, $stockFilter, $activeFilter);
+        $products = $this->getProducts($page, $perPage, $search, $categoryFilter, $orderBy, $orderWay, $stockFilter, $activeFilter, $expirationFilter);
+        $totalProducts = $this->getTotalProducts($search, $categoryFilter, $stockFilter, $activeFilter, $expirationFilter);
         $totalPages = max(1, ceil($totalProducts / $perPage));
 
         if ($page > $totalPages) {
@@ -144,6 +145,7 @@ class AdminProductAdvancedController extends ModuleAdminController
             'order_way' => $orderWay,
             'stock_filter' => $stockFilter,
             'active_filter' => $activeFilter,
+            'expiration_filter' => $expirationFilter,
             'out_of_stock_count' => $outOfStockCount,
             'ajax_url' => $this->context->link->getAdminLink('AdminProductAdvanced'),
             'token' => Tools::getAdminTokenLite('AdminProductAdvanced'),
@@ -156,7 +158,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $this->context->smarty->assign('content', $this->content);
     }
 
-    private function getProducts($page, $perPage, $search = '', $categoryId = 0, $orderBy = 'id_product', $orderWay = 'DESC', $stockFilter = '', $activeFilter = '')
+    private function getProducts($page, $perPage, $search = '', $categoryId = 0, $orderBy = 'id_product', $orderWay = 'DESC', $stockFilter = '', $activeFilter = '', $expirationFilter = '')
     {
         $langId = (int) $this->context->language->id;
         $shopId = (int) $this->context->shop->id;
@@ -206,11 +208,26 @@ class AdminProductAdvancedController extends ModuleAdminController
             $sql->where('ps.active = 0');
         }
 
+        // Filtro Scadenza
+        if ($expirationFilter === 'expired') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date < CURDATE()');
+        } elseif ($expirationFilter === '30') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)');
+        } elseif ($expirationFilter === '90') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)');
+        } elseif ($expirationFilter === 'no_date') {
+            $sql->where('ped.expiration_date IS NULL');
+        } elseif ($expirationFilter === 'has_date') {
+            $sql->where('ped.expiration_date IS NOT NULL');
+        }
+
         // Ordinamento
         if ($orderBy === 'name') {
             $sql->orderBy('pl.name ' . $orderWay);
         } elseif ($orderBy === 'quantity') {
             $sql->orderBy('quantity ' . $orderWay);
+        } elseif ($orderBy === 'expiration_date') {
+            $sql->orderBy('ped.expiration_date ' . $orderWay);
         } else {
             $sql->orderBy('p.' . $orderBy . ' ' . $orderWay);
         }
@@ -374,7 +391,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         return $cache;
     }
 
-    private function getTotalProducts($search = '', $categoryId = 0, $stockFilter = '', $activeFilter = '')
+    private function getTotalProducts($search = '', $categoryId = 0, $stockFilter = '', $activeFilter = '', $expirationFilter = '')
     {
         $shopId = (int) $this->context->shop->id;
         $langId = (int) $this->context->language->id;
@@ -385,6 +402,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->innerJoin('product_shop', 'ps', 'ps.id_product = p.id_product AND ps.id_shop = ' . (int)$shopId);
         $sql->leftJoin('product_lang', 'pl', 'pl.id_product = p.id_product AND pl.id_lang = ' . (int)$langId . ' AND pl.id_shop = ' . (int)$shopId);
         $sql->leftJoin('stock_available', 'sa', 'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int)$shopId);
+        $sql->leftJoin('product_expiration_date', 'ped', 'ped.id_product = p.id_product');
 
         if (!empty($search)) {
             $searchSafe = pSQL($search);
@@ -408,6 +426,19 @@ class AdminProductAdvancedController extends ModuleAdminController
             $sql->where('ps.active = 1');
         } elseif ($activeFilter === '0') {
             $sql->where('ps.active = 0');
+        }
+
+        // Filtro Scadenza
+        if ($expirationFilter === 'expired') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date < CURDATE()');
+        } elseif ($expirationFilter === '30') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)');
+        } elseif ($expirationFilter === '90') {
+            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)');
+        } elseif ($expirationFilter === 'no_date') {
+            $sql->where('ped.expiration_date IS NULL');
+        } elseif ($expirationFilter === 'has_date') {
+            $sql->where('ped.expiration_date IS NOT NULL');
         }
 
         return (int) Db::getInstance()->getValue($sql);
