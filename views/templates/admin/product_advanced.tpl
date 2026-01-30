@@ -114,6 +114,7 @@
                         <th class="pam-col-dim text-center">{l s='Larg.' mod='productadvancedmanager'} <small>(cm)</small></th>
                         <th class="pam-col-dim text-center">{l s='Alt.' mod='productadvancedmanager'} <small>(cm)</small></th>
                         <th class="pam-col-dim text-center">{l s='Prof.' mod='productadvancedmanager'} <small>(cm)</small></th>
+                        <th class="pam-col-date text-center">{l s='Scadenza' mod='productadvancedmanager'}</th>
                         <th class="pam-col-actions">{l s='Azioni' mod='productadvancedmanager'}</th>
                     </tr>
                 </thead>
@@ -190,8 +191,14 @@
                                            data-id="{$product.id_product}" data-attr="0" data-field="depth"
                                            step="0.01" min="0">
                                 </td>
+                                <td class="pam-col-date text-center">
+                                    <input type="date" class="form-control input-sm pam-input{if $product.expiration_date && $product.expiration_date <= $smarty.now|date_format:'%Y-%m-%d'} pam-stock-zero{elseif $product.expiration_date && $product.expiration_date <= ($smarty.now + 7776000)|date_format:'%Y-%m-%d'} pam-expiring-soon{/if}"
+                                           value="{if $product.expiration_date}{$product.expiration_date|escape:'html':'UTF-8'}{/if}"
+                                           data-original="{if $product.expiration_date}{$product.expiration_date|escape:'html':'UTF-8'}{/if}"
+                                           data-id="{$product.id_product}" data-attr="0" data-field="expiration_date">
+                                </td>
                                 <td class="pam-col-actions text-center">
-                                    <a href="{$link->getAdminLink('AdminProducts')}&id_product={$product.id_product}&updateproduct" 
+                                    <a href="{$link->getAdminLink('AdminProducts')}&id_product={$product.id_product}&updateproduct"
                                        class="btn btn-default btn-xs" target="_blank" title="{l s='Modifica' mod='productadvancedmanager'}">
                                         <i class="icon-pencil"></i>
                                     </a>
@@ -200,7 +207,7 @@
                         {/foreach}
                     {else}
                         <tr>
-                            <td colspan="11" class="text-center text-muted">
+                            <td colspan="12" class="text-center text-muted">
                                 <p style="padding: 30px 0;">
                                     <i class="icon-inbox" style="font-size: 36px;"></i><br><br>
                                     {l s='Nessun prodotto trovato' mod='productadvancedmanager'}
@@ -384,6 +391,7 @@
             '<td class="pam-col-dim text-center text-muted">-</td>' +
             '<td class="pam-col-dim text-center text-muted">-</td>' +
             '<td class="pam-col-dim text-center text-muted">-</td>' +
+            '<td class="pam-col-date text-center text-muted">-</td>' +
             '<td class="pam-col-actions"></td>' +
         '</tr>';
     }

@@ -168,6 +168,8 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->select('cl.name as category_name');
         // Fix: join image filtrata per shop
         $sql->select('IFNULL(ish.id_image, i.id_image) as id_image');
+        // Data di scadenza
+        $sql->select('ped.expiration_date');
         $sql->from('product', 'p');
         $sql->innerJoin('product_shop', 'ps', 'ps.id_product = p.id_product AND ps.id_shop = ' . (int)$shopId);
         $sql->leftJoin('product_lang', 'pl', 'pl.id_product = p.id_product AND pl.id_lang = ' . (int)$langId . ' AND pl.id_shop = ' . (int)$shopId);
@@ -176,6 +178,8 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Image con filtro shop (image_shop ha priorità, fallback su image.cover)
         $sql->leftJoin('image_shop', 'ish', 'ish.id_product = p.id_product AND ish.cover = 1 AND ish.id_shop = ' . (int)$shopId);
         $sql->leftJoin('image', 'i', 'i.id_product = p.id_product AND i.cover = 1 AND ish.id_image IS NULL');
+        // Join tabella scadenza
+        $sql->leftJoin('product_expiration_date', 'ped', 'ped.id_product = p.id_product');
 
         if (!empty($search)) {
             $searchSafe = pSQL($search);
@@ -526,14 +530,21 @@ class AdminProductAdvancedController extends ModuleAdminController
         }
 
         // Campi consentiti
-        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact'];
+        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact', 'expiration_date'];
         if (!in_array($field, $allowedFields)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Campo non valido')]);
         }
 
         // Validazione valore
-        if (!is_numeric($value)) {
+        if ($field !== 'expiration_date' && !is_numeric($value)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Valore non valido')]);
+        }
+
+        if ($field === 'expiration_date') {
+            // Accetta stringa vuota (rimozione data) o formato YYYY-MM-DD
+            if (!empty($value) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                $this->ajaxResponse(['success' => false, 'message' => $this->l('Formato data non valido')]);
+            }
         }
 
         // Solo quantity e dimensioni devono essere >= 0, price e price_impact possono essere qualsiasi
@@ -545,7 +556,29 @@ class AdminProductAdvancedController extends ModuleAdminController
             $shopId = (int) $this->context->shop->id;
             $displayValue = null;
 
-            if ($field === 'quantity') {
+            if ($field === 'expiration_date') {
+                $dateValue = empty($value) ? null : pSQL($value);
+
+                // Controlla se esiste già un record
+                $exists = (int) Db::getInstance()->getValue(
+                    'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_expiration_date WHERE id_product = ' . $idProduct
+                );
+
+                if ($dateValue === null) {
+                    $result = Db::getInstance()->delete('product_expiration_date', 'id_product = ' . $idProduct);
+                } elseif ($exists) {
+                    $result = Db::getInstance()->update('product_expiration_date', [
+                        'expiration_date' => $dateValue,
+                    ], 'id_product = ' . $idProduct);
+                } else {
+                    $result = Db::getInstance()->insert('product_expiration_date', [
+                        'id_product' => $idProduct,
+                        'expiration_date' => $dateValue,
+                    ]);
+                }
+
+                $displayValue = $dateValue ?: '';
+            } elseif ($field === 'quantity') {
                 $quantity = (int) $value;
 
                 $result = Db::getInstance()->update('stock_available', [
@@ -647,7 +680,28 @@ class AdminProductAdvancedController extends ModuleAdminController
             if (!$idProduct) continue;
 
             foreach ($fields as $field => $value) {
-                if ($field === 'quantity') {
+                if ($field === 'expiration_date') {
+                    $dateValue = empty($value) ? null : pSQL($value);
+                    if ($dateValue !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateValue)) {
+                        continue;
+                    }
+                    $exists = (int) Db::getInstance()->getValue(
+                        'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_expiration_date WHERE id_product = ' . $idProduct
+                    );
+                    if ($dateValue === null) {
+                        Db::getInstance()->delete('product_expiration_date', 'id_product = ' . $idProduct);
+                    } elseif ($exists) {
+                        Db::getInstance()->update('product_expiration_date', [
+                            'expiration_date' => $dateValue,
+                        ], 'id_product = ' . $idProduct);
+                    } else {
+                        Db::getInstance()->insert('product_expiration_date', [
+                            'id_product' => $idProduct,
+                            'expiration_date' => $dateValue,
+                        ]);
+                    }
+                    $updated++;
+                } elseif ($field === 'quantity') {
                     $quantity = (int) $value;
                     if ($quantity >= 0) {
                         Db::getInstance()->update('stock_available', [

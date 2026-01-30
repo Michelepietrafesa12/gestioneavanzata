@@ -272,14 +272,18 @@ class ProductAdvancedManager extends Module
         // Query: varianti a stock 0 di prodotti attivi
         $results = $this->getOutOfStockProducts();
 
-        if (empty($results)) {
-            $message = $this->l('Nessun prodotto/variante a stock 0 trovato');
+        // Query: prodotti in scadenza entro 3 mesi
+        $expiringProducts = $this->getExpiringProducts();
+
+        if (empty($results) && empty($expiringProducts)) {
+            $message = $this->l('Nessun prodotto a stock 0 o in scadenza trovato');
             return ['success' => true, 'message' => $message];
         }
 
         // Costruisci email HTML
-        $html = $this->buildAlertEmailHtml($results);
-        $subject = sprintf('[%s] %d Prodotti/Varianti a Stock 0', Configuration::get('PS_SHOP_NAME'), count($results));
+        $html = $this->buildAlertEmailHtml($results, $expiringProducts);
+        $totalIssues = count($results) + count($expiringProducts);
+        $subject = sprintf('[%s] Alert: %d Stock 0 / %d In Scadenza', Configuration::get('PS_SHOP_NAME'), count($results), count($expiringProducts));
 
         // Invia email
         $emails = array_map('trim', explode(',', $email));
@@ -295,7 +299,7 @@ class ProductAdvancedManager extends Module
                         '{stock_alert_content}' => $html,
                         '{shop_name}' => Configuration::get('PS_SHOP_NAME'),
                         '{shop_url}' => $this->context->shop->getBaseURL(true),
-                        '{total_count}' => count($results),
+                        '{total_count}' => $totalIssues,
                     ],
                     $toEmail,
                     null,
@@ -311,7 +315,7 @@ class ProductAdvancedManager extends Module
         Configuration::updateValue('PAM_ALERT_LAST_RUN', date('d/m/Y H:i:s'));
 
         if ($sent) {
-            $message = sprintf($this->l('Email inviata! Trovati %d prodotti/varianti a stock 0.'), count($results));
+            $message = sprintf($this->l('Email inviata! %d stock 0, %d in scadenza.'), count($results), count($expiringProducts));
             return ['success' => true, 'message' => $message];
         } else {
             return ['success' => false, 'message' => $this->l('Errore invio email. Verifica configurazione SMTP.')];
@@ -366,9 +370,43 @@ class ProductAdvancedManager extends Module
     }
 
     /**
+     * Recupera prodotti attivi con data di scadenza entro 3 mesi
+     */
+    public function getExpiringProducts()
+    {
+        $langId = (int) Configuration::get('PS_LANG_DEFAULT');
+        $shopId = (int) Context::getContext()->shop->id;
+
+        $sql = '
+            SELECT
+                p.id_product,
+                pl.name AS product_name,
+                p.reference AS product_reference,
+                ped.expiration_date,
+                DATEDIFF(ped.expiration_date, CURDATE()) AS days_left
+            FROM ' . _DB_PREFIX_ . 'product_expiration_date ped
+            INNER JOIN ' . _DB_PREFIX_ . 'product p
+                ON ped.id_product = p.id_product
+            INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps
+                ON p.id_product = ps.id_product AND ps.id_shop = ' . $shopId . '
+            INNER JOIN ' . _DB_PREFIX_ . 'product_lang pl
+                ON p.id_product = pl.id_product
+                AND pl.id_lang = ' . $langId . '
+                AND pl.id_shop = ' . $shopId . '
+            WHERE ps.active = 1
+                AND ped.expiration_date IS NOT NULL
+                AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 3 MONTH)
+                AND ped.expiration_date >= CURDATE()
+            ORDER BY ped.expiration_date ASC
+        ';
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    /**
      * Costruisce HTML email
      */
-    protected function buildAlertEmailHtml($results)
+    protected function buildAlertEmailHtml($results, $expiringProducts = [])
     {
         $adminUrl = $this->context->shop->getBaseURL(true) . basename(_PS_ADMIN_DIR_);
         
@@ -409,6 +447,45 @@ class ProductAdvancedManager extends Module
         }
 
         $html .= '</tbody></table>';
+
+        // Sezione prodotti in scadenza
+        if (!empty($expiringProducts)) {
+            $html .= '
+            <br><br>
+            <h3 style="color:#e65100;font-family:Arial,sans-serif;">Prodotti in Scadenza (entro 3 mesi): ' . count($expiringProducts) . '</h3>
+            <table style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 13px;">
+                <thead>
+                    <tr style="background-color: #e65100; color: white;">
+                        <th style="padding: 10px; text-align: left;">ID</th>
+                        <th style="padding: 10px; text-align: left;">Prodotto</th>
+                        <th style="padding: 10px; text-align: left;">Reference</th>
+                        <th style="padding: 10px; text-align: center;">Scadenza</th>
+                        <th style="padding: 10px; text-align: center;">Giorni Rimasti</th>
+                        <th style="padding: 10px; text-align: center;">Azione</th>
+                    </tr>
+                </thead>
+                <tbody>';
+
+            foreach ($expiringProducts as $row) {
+                $daysLeft = (int) $row['days_left'];
+                $urgencyColor = $daysLeft <= 30 ? '#d32f2f' : ($daysLeft <= 60 ? '#ff9800' : '#4caf50');
+
+                $editUrl = $adminUrl . '/index.php?controller=AdminProducts&id_product='
+                    . $row['id_product'] . '&updateproduct';
+
+                $html .= '
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 8px;">' . $row['id_product'] . '</td>
+                        <td style="padding: 8px;">' . htmlspecialchars($row['product_name']) . '</td>
+                        <td style="padding: 8px;"><code>' . htmlspecialchars($row['product_reference']) . '</code></td>
+                        <td style="padding: 8px; text-align: center;">' . date('d/m/Y', strtotime($row['expiration_date'])) . '</td>
+                        <td style="padding: 8px; text-align: center;"><span style="background:' . $urgencyColor . ';color:white;padding:2px 8px;border-radius:3px;font-weight:bold;">' . $daysLeft . 'gg</span></td>
+                        <td style="padding: 8px; text-align: center;"><a href="' . $editUrl . '" style="color:#1976d2;">Modifica</a></td>
+                    </tr>';
+            }
+
+            $html .= '</tbody></table>';
+        }
 
         return $html;
     }

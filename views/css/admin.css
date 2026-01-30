@@ -259,3 +259,17 @@
 .pam-has-oos:hover {
     background-color: #ffecb3 !important;
 }
+
+/* Colonna data scadenza */
+.pam-col-date { width: 130px; }
+
+.pam-col-date .pam-input {
+    width: 130px !important;
+}
+
+/* Prodotto in scadenza entro 3 mesi */
+.pam-expiring-soon {
+    background-color: #fff3e0 !important;
+    border-color: #ff9800 !important;
+    color: #e65100 !important;
+}
