@@ -4,7 +4,7 @@
  * Gestione avanzata prodotti: peso, dimensioni e stock
  *
  * @author CompraloSubito24
- * @version 2.1.0
+ * @version 3.0.0
  */
 
 if (!defined('_PS_VERSION_')) {
@@ -17,12 +17,12 @@ class ProductAdvancedManager extends Module
     {
         $this->name = 'productadvancedmanager';
         $this->tab = 'administration';
-        $this->version = '2.1.0';
+        $this->version = '3.0.0';
         $this->author = 'CompraloSubito24';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
             'min' => '1.7.0.0',
-            'max' => '1.7.99.99',
+            'max' => '8.99.99',
         ];
         $this->bootstrap = true;
 
@@ -36,7 +36,6 @@ class ProductAdvancedManager extends Module
     public function install()
     {
         return parent::install()
-            && $this->registerHook('displayBackOfficeHeader')
             && $this->installTab()
             && Configuration::updateValue('PAM_ALERT_EMAIL', Configuration::get('PS_SHOP_EMAIL'))
             && Configuration::updateValue('PAM_ALERT_ENABLED', 1)
@@ -82,12 +81,6 @@ class ProductAdvancedManager extends Module
         }
         
         return true;
-    }
-
-    public function hookDisplayBackOfficeHeader()
-    {
-        // CSS/JS vengono caricati dal controller via setMedia()
-        // Il JS principale è inline nel template per evitare problemi di configurazione
     }
 
     /**

@@ -2,7 +2,7 @@
 <module>
     <n>productadvancedmanager</n>
     <displayName><![CDATA[Product Advanced Manager]]></displayName>
-    <version><![CDATA[2.1.0]]></version>
+    <version><![CDATA[3.0.0]]></version>
     <description><![CDATA[Gestione avanzata prodotti: modifica inline di peso, dimensioni e stock + alert email stock esaurito.]]></description>
     <author><![CDATA[CompraloSubito24]]></author>
     <tab><![CDATA[administration]]></tab>

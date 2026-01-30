@@ -23,9 +23,9 @@ if (empty($token)) {
     Configuration::updateValue('PAM_CRON_TOKEN', $token);
 }
 
-if (!Tools::getValue('token') || Tools::getValue('token') !== $token) {
+if (!Tools::getValue('token') || !hash_equals($token, Tools::getValue('token'))) {
     header('HTTP/1.1 403 Forbidden');
-    die('Invalid token. Your token is: ' . $token);
+    die('Invalid token');
 }
 
 // Esegui controllo stock

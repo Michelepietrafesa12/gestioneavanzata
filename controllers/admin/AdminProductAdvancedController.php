@@ -1,7 +1,7 @@
 <?php
 /**
  * Controller per Gestione Avanzata Prodotti
- * @version 2.0.0
+ * @version 3.0.0 - Ottimizzato per PrestaShop 8.2
  */
 
 class AdminProductAdvancedController extends ModuleAdminController
@@ -15,7 +15,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $this->lang = true;
         $this->_defaultOrderBy = 'id_product';
         $this->_defaultOrderWay = 'DESC';
-        
+
         parent::__construct();
 
         $this->meta_title = $this->l('Gestione Avanzata Prodotti');
@@ -24,9 +24,14 @@ class AdminProductAdvancedController extends ModuleAdminController
     public function init()
     {
         parent::init();
-        
+
         // Gestione AJAX
         if (Tools::getValue('ajax')) {
+            // Verifica token CSRF per tutte le azioni AJAX
+            if (!$this->isTokenValid()) {
+                $this->ajaxResponse(['success' => false, 'message' => 'Invalid security token']);
+            }
+
             $action = Tools::getValue('action');
             if ($action === 'updateProduct') {
                 $this->ajaxProcessUpdateProduct();
@@ -39,20 +44,38 @@ class AdminProductAdvancedController extends ModuleAdminController
             }
         }
     }
-    
+
+    /**
+     * Verifica token CSRF di PrestaShop
+     */
+    private function isTokenValid()
+    {
+        $token = Tools::getValue('token');
+        return !empty($token) && $token === Tools::getAdminTokenLite('AdminProductAdvanced');
+    }
+
+    /**
+     * Risposta AJAX standardizzata (sostituisce die(json_encode(...)))
+     */
+    private function ajaxResponse(array $data)
+    {
+        header('Content-Type: application/json');
+        ob_end_clean();
+        echo json_encode($data);
+        exit;
+    }
+
     /**
      * Invia alert email via AJAX
      */
     public function ajaxProcessSendStockAlert()
     {
-        header('Content-Type: application/json');
-        
         $module = Module::getInstanceByName('productadvancedmanager');
         if ($module && $module->active) {
             $result = $module->runStockAlert(true);
-            die(json_encode($result));
+            $this->ajaxResponse($result);
         } else {
-            die(json_encode(['success' => false, 'message' => $this->l('Modulo non attivo')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('Modulo non attivo')]);
         }
     }
 
@@ -78,7 +101,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $categoryFilter = (int) Tools::getValue('category', 0);
         $orderBy = Tools::getValue('order_by', 'id_product');
         $orderWay = Tools::getValue('order_way', 'DESC');
-        
+
         // Nuovi filtri
         $stockFilter = Tools::getValue('stock_filter', ''); // '', '0', 'low'
         $activeFilter = Tools::getValue('active_filter', ''); // '', '1', '0'
@@ -101,8 +124,8 @@ class AdminProductAdvancedController extends ModuleAdminController
 
         // Categorie
         $categories = Category::getCategories($this->context->language->id, true, false);
-        
-        // Conta prodotti a stock 0 per badge
+
+        // Conta prodotti a stock 0 per badge (con cache)
         $outOfStockCount = $this->getOutOfStockCount();
 
         // Assegna al template
@@ -140,44 +163,17 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql = new DbQuery();
         $sql->select('p.id_product, p.reference, p.price, p.id_tax_rules_group, p.weight, p.width, p.height, p.depth, p.active, pl.name');
         $sql->select('IFNULL(sa.quantity, 0) as quantity, sa.id_stock_available');
-        $sql->select('cl.name as category_name, i.id_image');
+        $sql->select('cl.name as category_name');
+        // Fix: join image filtrata per shop
+        $sql->select('IFNULL(ish.id_image, i.id_image) as id_image');
         $sql->from('product', 'p');
         $sql->innerJoin('product_shop', 'ps', 'ps.id_product = p.id_product AND ps.id_shop = ' . (int)$shopId);
         $sql->leftJoin('product_lang', 'pl', 'pl.id_product = p.id_product AND pl.id_lang = ' . (int)$langId . ' AND pl.id_shop = ' . (int)$shopId);
         $sql->leftJoin('stock_available', 'sa', 'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int)$shopId);
         $sql->leftJoin('category_lang', 'cl', 'cl.id_category = p.id_category_default AND cl.id_lang = ' . (int)$langId . ' AND cl.id_shop = ' . (int)$shopId);
-        $sql->leftJoin('image', 'i', 'i.id_product = p.id_product AND i.cover = 1');
-
-        // Conta combinazioni separatamente (filtrando per shop)
-        $combinationsCount = [];
-        $countSql = 'SELECT pa.id_product, COUNT(*) as cnt
-                     FROM ' . _DB_PREFIX_ . 'product_attribute pa
-                     INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
-                         ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
-                     GROUP BY pa.id_product';
-        $countResults = Db::getInstance()->executeS($countSql);
-        if ($countResults) {
-            foreach ($countResults as $row) {
-                $combinationsCount[(int)$row['id_product']] = (int)$row['cnt'];
-            }
-        }
-
-        // Conta combinazioni a stock 0 per ogni prodotto (filtrando per shop)
-        $combinationsOOS = [];
-        $oosSql = 'SELECT pa.id_product, COUNT(*) as cnt
-                   FROM ' . _DB_PREFIX_ . 'product_attribute pa
-                   INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
-                       ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
-                   INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa
-                       ON pa.id_product_attribute = sa.id_product_attribute AND sa.id_shop = ' . (int)$shopId . '
-                   WHERE sa.quantity = 0
-                   GROUP BY pa.id_product';
-        $oosResults = Db::getInstance()->executeS($oosSql);
-        if ($oosResults) {
-            foreach ($oosResults as $row) {
-                $combinationsOOS[(int)$row['id_product']] = (int)$row['cnt'];
-            }
-        }
+        // Image con filtro shop (image_shop ha priorità, fallback su image.cover)
+        $sql->leftJoin('image_shop', 'ish', 'ish.id_product = p.id_product AND ish.cover = 1 AND ish.id_shop = ' . (int)$shopId);
+        $sql->leftJoin('image', 'i', 'i.id_product = p.id_product AND i.cover = 1 AND ish.id_image IS NULL');
 
         if (!empty($search)) {
             $searchSafe = pSQL($search);
@@ -187,17 +183,16 @@ class AdminProductAdvancedController extends ModuleAdminController
         if ($categoryId > 0) {
             $sql->innerJoin('category_product', 'cp', 'cp.id_product = p.id_product AND cp.id_category = ' . (int)$categoryId);
         }
-        
+
         // Filtro Stock - include prodotti con combinazioni a stock 0
         if ($stockFilter === '0') {
-            // Prodotti con stock base = 0 OPPURE con almeno una combinazione a stock 0
             $sql->leftJoin('stock_available', 'sa_comb', 'sa_comb.id_product = p.id_product AND sa_comb.id_product_attribute > 0 AND sa_comb.id_shop = ' . (int)$shopId . ' AND sa_comb.quantity = 0');
             $sql->where('(IFNULL(sa.quantity, 0) = 0 OR sa_comb.id_stock_available IS NOT NULL)');
             $sql->groupBy('p.id_product');
         } elseif ($stockFilter === 'low') {
             $sql->where('IFNULL(sa.quantity, 0) > 0 AND IFNULL(sa.quantity, 0) <= 5');
         }
-        
+
         // Filtro Attivo
         if ($activeFilter === '1') {
             $sql->where('ps.active = 1');
@@ -219,7 +214,45 @@ class AdminProductAdvancedController extends ModuleAdminController
         $results = Db::getInstance()->executeS($sql);
 
         if ($results) {
-            // OTTIMIZZATO: Recupera tutte le aliquote IVA in una sola query
+            // Raccogli gli ID prodotto della pagina corrente
+            $productIds = array_map(function ($r) {
+                return (int)$r['id_product'];
+            }, $results);
+            $productIdsStr = implode(',', $productIds);
+
+            // OTTIMIZZATO: conta combinazioni SOLO per i prodotti della pagina
+            $combinationsCount = [];
+            $countSql = 'SELECT pa.id_product, COUNT(*) as cnt
+                         FROM ' . _DB_PREFIX_ . 'product_attribute pa
+                         INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
+                             ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
+                         WHERE pa.id_product IN (' . $productIdsStr . ')
+                         GROUP BY pa.id_product';
+            $countResults = Db::getInstance()->executeS($countSql);
+            if ($countResults) {
+                foreach ($countResults as $row) {
+                    $combinationsCount[(int)$row['id_product']] = (int)$row['cnt'];
+                }
+            }
+
+            // OTTIMIZZATO: conta combinazioni OOS SOLO per i prodotti della pagina
+            $combinationsOOS = [];
+            $oosSql = 'SELECT pa.id_product, COUNT(*) as cnt
+                       FROM ' . _DB_PREFIX_ . 'product_attribute pa
+                       INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas
+                           ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
+                       INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa
+                           ON pa.id_product_attribute = sa.id_product_attribute AND sa.id_shop = ' . (int)$shopId . '
+                       WHERE sa.quantity = 0 AND pa.id_product IN (' . $productIdsStr . ')
+                       GROUP BY pa.id_product';
+            $oosResults = Db::getInstance()->executeS($oosSql);
+            if ($oosResults) {
+                foreach ($oosResults as $row) {
+                    $combinationsOOS[(int)$row['id_product']] = (int)$row['cnt'];
+                }
+            }
+
+            // Recupera tutte le aliquote IVA in una sola query
             $taxRatesCache = $this->getAllTaxRates();
 
             foreach ($results as &$row) {
@@ -308,7 +341,7 @@ class AdminProductAdvancedController extends ModuleAdminController
     }
 
     /**
-     * OTTIMIZZATO: Recupera TUTTE le aliquote IVA in una sola query
+     * Recupera TUTTE le aliquote IVA in una sola query
      * Restituisce array [id_tax_rules_group => rate]
      */
     private function getAllTaxRates()
@@ -355,7 +388,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         if ($categoryId > 0) {
             $sql->innerJoin('category_product', 'cp', 'cp.id_product = p.id_product AND cp.id_category = ' . (int)$categoryId);
         }
-        
+
         // Filtro Stock - include prodotti con combinazioni a stock 0
         if ($stockFilter === '0') {
             $sql->leftJoin('stock_available', 'sa_comb', 'sa_comb.id_product = p.id_product AND sa_comb.id_product_attribute > 0 AND sa_comb.id_shop = ' . (int)$shopId . ' AND sa_comb.quantity = 0');
@@ -363,7 +396,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         } elseif ($stockFilter === 'low') {
             $sql->where('IFNULL(sa.quantity, 0) > 0 AND IFNULL(sa.quantity, 0) <= 5');
         }
-        
+
         // Filtro Attivo
         if ($activeFilter === '1') {
             $sql->where('ps.active = 1');
@@ -373,63 +406,76 @@ class AdminProductAdvancedController extends ModuleAdminController
 
         return (int) Db::getInstance()->getValue($sql);
     }
-    
+
     /**
      * Conta prodotti e varianti attivi a stock 0
+     * Con cache per evitare ricalcoli ad ogni page load
      */
     private function getOutOfStockCount()
     {
         $shopId = (int) $this->context->shop->id;
-        
+        $cacheKey = 'pam_oos_count_' . $shopId;
+
+        // Controlla cache (5 minuti)
+        $cached = Configuration::get($cacheKey);
+        if ($cached !== false) {
+            $data = json_decode($cached, true);
+            if ($data && isset($data['ts']) && (time() - $data['ts']) < 300) {
+                return (int) $data['count'];
+            }
+        }
+
         // Conta prodotti semplici attivi a stock 0
         $sqlSimple = '
-            SELECT COUNT(DISTINCT p.id_product) 
+            SELECT COUNT(DISTINCT p.id_product)
             FROM ' . _DB_PREFIX_ . 'product p
-            INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product AND ps.id_shop = ' . $shopId . '
-            LEFT JOIN ' . _DB_PREFIX_ . 'stock_available sa ON p.id_product = sa.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . $shopId . '
+            INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product AND ps.id_shop = ' . (int)$shopId . '
+            LEFT JOIN ' . _DB_PREFIX_ . 'stock_available sa ON p.id_product = sa.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int)$shopId . '
             LEFT JOIN ' . _DB_PREFIX_ . 'product_attribute pa ON p.id_product = pa.id_product
-            WHERE ps.active = 1 
-                AND pa.id_product_attribute IS NULL 
+            WHERE ps.active = 1
+                AND pa.id_product_attribute IS NULL
                 AND IFNULL(sa.quantity, 0) = 0';
-        
+
         $countSimple = (int) Db::getInstance()->getValue($sqlSimple);
-        
+
         // Conta combinazioni attive a stock 0
         $sqlComb = '
-            SELECT COUNT(DISTINCT pa.id_product_attribute) 
+            SELECT COUNT(DISTINCT pa.id_product_attribute)
             FROM ' . _DB_PREFIX_ . 'product_attribute pa
             INNER JOIN ' . _DB_PREFIX_ . 'product p ON pa.id_product = p.id_product
-            INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product AND ps.id_shop = ' . $shopId . '
-            INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa ON pa.id_product_attribute = sa.id_product_attribute AND sa.id_shop = ' . $shopId . '
+            INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product AND ps.id_shop = ' . (int)$shopId . '
+            INNER JOIN ' . _DB_PREFIX_ . 'product_attribute_shop pas ON pa.id_product_attribute = pas.id_product_attribute AND pas.id_shop = ' . (int)$shopId . '
+            INNER JOIN ' . _DB_PREFIX_ . 'stock_available sa ON pa.id_product_attribute = sa.id_product_attribute AND sa.id_shop = ' . (int)$shopId . '
             WHERE ps.active = 1 AND sa.quantity = 0';
-        
+
         $countComb = (int) Db::getInstance()->getValue($sqlComb);
-        
-        return $countSimple + $countComb;
+
+        $total = $countSimple + $countComb;
+
+        // Salva in cache
+        Configuration::updateValue($cacheKey, json_encode(['ts' => time(), 'count' => $total]));
+
+        return $total;
     }
 
     /**
      * Ottiene le combinazioni di un prodotto via AJAX
-     * OTTIMIZZATO: Usa GROUP_CONCAT invece di N+1 query
+     * Usa GROUP_CONCAT per ottenere nomi attributi in una sola query
      */
     public function ajaxProcessGetCombinations()
     {
-        header('Content-Type: application/json');
-
         $idProduct = (int) Tools::getValue('id_product');
 
         if (!$idProduct) {
-            die(json_encode(['success' => false, 'message' => $this->l('ID prodotto mancante')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('ID prodotto mancante')]);
         }
 
         $langId = (int) $this->context->language->id;
         $shopId = (int) $this->context->shop->id;
 
-        // Query ottimizzata: recupera combinazioni + nomi attributi in una sola query
         $sql = new DbQuery();
         $sql->select('pa.id_product_attribute, pa.reference, pa.price as price_impact');
         $sql->select('IFNULL(sa.quantity, 0) as quantity');
-        // GROUP_CONCAT per ottenere tutti i nomi attributi in una sola query
         $sql->select('GROUP_CONCAT(DISTINCT al.name ORDER BY agl.id_attribute_group ASC SEPARATOR " - ") as attribute_name');
         $sql->from('product_attribute', 'pa');
         // Filtra per shop
@@ -455,11 +501,11 @@ class AdminProductAdvancedController extends ModuleAdminController
             }
         }
 
-        die(json_encode([
+        $this->ajaxResponse([
             'success' => true,
             'combinations' => $combinations ?: [],
             'id_product' => $idProduct
-        ]));
+        ]);
     }
 
     /**
@@ -467,8 +513,6 @@ class AdminProductAdvancedController extends ModuleAdminController
      */
     public function ajaxProcessUpdateProduct()
     {
-        header('Content-Type: application/json');
-
         $idProduct = (int) Tools::getValue('id_product');
         $idProductAttribute = (int) Tools::getValue('id_product_attribute', 0);
         $field = Tools::getValue('field');
@@ -476,102 +520,104 @@ class AdminProductAdvancedController extends ModuleAdminController
 
         // Validazione ID
         if (!$idProduct) {
-            die(json_encode(['success' => false, 'message' => $this->l('ID prodotto mancante')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('ID prodotto mancante')]);
         }
 
         // Campi consentiti
         $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact'];
         if (!in_array($field, $allowedFields)) {
-            die(json_encode(['success' => false, 'message' => $this->l('Campo non valido')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('Campo non valido')]);
         }
 
         // Validazione valore
         if (!is_numeric($value)) {
-            die(json_encode(['success' => false, 'message' => $this->l('Valore non valido')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('Valore non valido')]);
         }
-        
+
         // Solo quantity e dimensioni devono essere >= 0, price e price_impact possono essere qualsiasi
         if (in_array($field, ['weight', 'width', 'height', 'depth', 'quantity']) && (float)$value < 0) {
-            die(json_encode(['success' => false, 'message' => $this->l('Valore non valido')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('Valore non valido')]);
         }
 
         try {
+            $shopId = (int) $this->context->shop->id;
+            $displayValue = null;
+
             if ($field === 'quantity') {
-                // Aggiorna stock nella tabella stock_available
                 $quantity = (int) $value;
-                $shopId = (int) $this->context->shop->id;
 
                 $result = Db::getInstance()->update('stock_available', [
                     'quantity' => $quantity,
                 ], 'id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute . ' AND id_shop = ' . $shopId);
 
-                // Se è una variante, sincronizza lo stock del prodotto principale
                 if ($idProductAttribute > 0) {
                     $this->syncProductStock($idProduct, $shopId);
                 }
+
+                $displayValue = $quantity;
             } elseif ($field === 'price' && $idProductAttribute == 0) {
-                // Aggiorna prezzo base del prodotto (il valore ricevuto è IVA inclusa)
                 $priceTaxIncl = round((float) $value, 6);
-                $shopId = (int) $this->context->shop->id;
-                
-                // Ottieni l'aliquota IVA del prodotto
+
                 $idTaxRulesGroup = (int) Db::getInstance()->getValue(
                     'SELECT id_tax_rules_group FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . $idProduct
                 );
                 $taxRate = $this->getTaxRate($idTaxRulesGroup);
-                
-                // Calcola prezzo senza IVA
-                $priceNet = $priceTaxIncl / (1 + $taxRate / 100);
-                $priceNet = round($priceNet, 6);
-                
-                // Aggiorna sia product che product_shop
+
+                $priceNet = round($priceTaxIncl / (1 + $taxRate / 100), 6);
+
                 Db::getInstance()->update('product', [
                     'price' => $priceNet,
                 ], 'id_product = ' . $idProduct);
-                
+
                 $result = Db::getInstance()->update('product_shop', [
                     'price' => $priceNet,
                 ], 'id_product = ' . $idProduct . ' AND id_shop = ' . $shopId);
+
+                // Ricalcola il prezzo IVA inclusa dal netto salvato per evitare arrotondamenti
+                $displayValue = number_format($priceNet * (1 + $taxRate / 100), 2, '.', '');
             } elseif ($field === 'price_impact') {
-                // Aggiorna impatto prezzo nella tabella product_attribute
                 $priceImpact = round((float) $value, 6);
-                
+
                 $result = Db::getInstance()->update('product_attribute', [
                     'price' => $priceImpact,
                 ], 'id_product_attribute = ' . $idProductAttribute);
+
+                $displayValue = number_format((float)$value, 2, '.', '');
             } else {
-                // Aggiorna dimensioni/peso
                 $floatValue = round((float) $value, 6);
-                
+
                 if ($idProductAttribute > 0) {
-                    // Aggiorna nella tabella product_attribute (variante)
                     $result = Db::getInstance()->update('product_attribute', [
                         $field => $floatValue,
                     ], 'id_product_attribute = ' . $idProductAttribute);
                 } else {
-                    // Aggiorna nella tabella product (prodotto principale)
                     $result = Db::getInstance()->update('product', [
                         $field => $floatValue,
                     ], 'id_product = ' . $idProduct);
                 }
+
+                $displayValue = number_format((float)$value, 2, '.', '');
             }
 
             if ($result !== false) {
-                $displayValue = ($field === 'quantity') ? (int)$value : number_format((float)$value, 2, '.', '');
-                
-                die(json_encode([
+                // Invalida cache OOS dopo modifica stock
+                if ($field === 'quantity') {
+                    $this->invalidateOosCache();
+                }
+
+                $this->ajaxResponse([
                     'success' => true,
                     'message' => $this->l('Aggiornato'),
                     'value' => $displayValue,
                     'id_product' => $idProduct,
                     'id_product_attribute' => $idProductAttribute,
                     'field' => $field
-                ]));
+                ]);
             } else {
-                die(json_encode(['success' => false, 'message' => $this->l('Errore nel salvataggio')]));
+                $this->ajaxResponse(['success' => false, 'message' => $this->l('Errore nel salvataggio')]);
             }
         } catch (Exception $e) {
-            die(json_encode(['success' => false, 'message' => $e->getMessage()]));
+            $this->ajaxResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
@@ -580,20 +626,18 @@ class AdminProductAdvancedController extends ModuleAdminController
      */
     public function ajaxProcessUpdateProductBatch()
     {
-        header('Content-Type: application/json');
-
         $changes = Tools::getValue('changes');
-        
+
         if (!$changes || !is_array($changes)) {
-            die(json_encode(['success' => false, 'message' => $this->l('Dati non validi')]));
+            $this->ajaxResponse(['success' => false, 'message' => $this->l('Dati non validi')]);
         }
 
         $updated = 0;
         $shopId = (int) $this->context->shop->id;
-        $productsToSync = []; // Prodotti con varianti modificate da sincronizzare
+        $productsToSync = [];
+        $hasStockChanges = false;
 
         foreach ($changes as $key => $fields) {
-            // Il key può essere "123" (prodotto) o "123_456" (prodotto_variante)
             $parts = explode('_', $key);
             $idProduct = (int) $parts[0];
             $idProductAttribute = isset($parts[1]) ? (int) $parts[1] : 0;
@@ -608,8 +652,8 @@ class AdminProductAdvancedController extends ModuleAdminController
                             'quantity' => $quantity,
                         ], 'id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute . ' AND id_shop = ' . $shopId);
                         $updated++;
+                        $hasStockChanges = true;
 
-                        // Segna il prodotto per la sincronizzazione se è una variante
                         if ($idProductAttribute > 0) {
                             $productsToSync[$idProduct] = true;
                         }
@@ -617,13 +661,12 @@ class AdminProductAdvancedController extends ModuleAdminController
                 } elseif ($field === 'price' && $idProductAttribute == 0) {
                     $priceTaxIncl = round((float) $value, 6);
                     if ($priceTaxIncl >= 0) {
-                        // Ottieni l'aliquota IVA del prodotto
                         $idTaxRulesGroup = (int) Db::getInstance()->getValue(
                             'SELECT id_tax_rules_group FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . $idProduct
                         );
                         $taxRate = $this->getTaxRate($idTaxRulesGroup);
                         $priceNet = round($priceTaxIncl / (1 + $taxRate / 100), 6);
-                        
+
                         Db::getInstance()->update('product', [
                             'price' => $priceNet,
                         ], 'id_product = ' . $idProduct);
@@ -661,10 +704,24 @@ class AdminProductAdvancedController extends ModuleAdminController
             $this->syncProductStock($idProduct, $shopId);
         }
 
-        die(json_encode([
+        // Invalida cache OOS dopo modifica stock
+        if ($hasStockChanges) {
+            $this->invalidateOosCache();
+        }
+
+        $this->ajaxResponse([
             'success' => true,
             'updated' => $updated,
             'message' => sprintf($this->l('%d modifiche salvate'), $updated)
-        ]));
+        ]);
+    }
+
+    /**
+     * Invalida la cache del conteggio OOS
+     */
+    private function invalidateOosCache()
+    {
+        $shopId = (int) $this->context->shop->id;
+        Configuration::deleteByName('pam_oos_count_' . $shopId);
     }
 }
