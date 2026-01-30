@@ -95,7 +95,7 @@
             
             {* Filtro rapido per stock 0 attivi *}
             {if $stock_filter != '0' || $active_filter != '1' || $expiration_filter != ''}
-            <div class="row" style="margin-bottom:10px;">
+            <div class="row" style="margin-bottom:12px; padding-top:8px; border-top:1px solid #eee;">
                 <div class="col-md-12">
                     <a href="index.php?controller=AdminProductAdvanced&token={$token|escape:'html':'UTF-8'}&stock_filter=0&active_filter=1" class="btn btn-xs btn-danger">
                         <i class="icon-warning"></i> {l s='Mostra prodotti/varianti ATTIVI a Stock 0' mod='productadvancedmanager'}
@@ -113,7 +113,7 @@
 
         <!-- Tabella -->
         <div class="table-responsive">
-            <table class="table table-striped table-hover table-condensed" id="pam-table">
+            <table class="table table-hover" id="pam-table">
                 <thead>
                     <tr>
                         <th class="pam-col-id">ID</th>
@@ -150,9 +150,9 @@
                                 </td>
                                 <td class="pam-col-img">
                                     {if $product.image_url}
-                                        <img src="{$product.image_url}" alt="" class="img-thumbnail" style="max-width:40px;max-height:40px;">
+                                        <img src="{$product.image_url}" alt="" class="img-thumbnail">
                                     {else}
-                                        <i class="icon-picture-o text-muted"></i>
+                                        <i class="icon-picture-o text-muted" style="font-size:20px;"></i>
                                     {/if}
                                 </td>
                                 <td class="pam-col-name" title="{$product.name|escape:'html':'UTF-8'}">
@@ -219,11 +219,14 @@
                         {/foreach}
                     {else}
                         <tr>
-                            <td colspan="12" class="text-center text-muted">
-                                <p style="padding: 30px 0;">
-                                    <i class="icon-inbox" style="font-size: 36px;"></i><br><br>
-                                    {l s='Nessun prodotto trovato' mod='productadvancedmanager'}
-                                </p>
+                            <td colspan="12" class="text-center pam-empty-state">
+                                <i class="icon-inbox"></i>
+                                <p>{l s='Nessun prodotto trovato' mod='productadvancedmanager'}</p>
+                                {if $stock_filter != '' || $active_filter != '' || $expiration_filter != '' || $search != '' || $category_filter > 0}
+                                    <a href="index.php?controller=AdminProductAdvanced&token={$token|escape:'html':'UTF-8'}" class="btn btn-sm btn-default" style="margin-top:10px;">
+                                        <i class="icon-remove"></i> {l s='Reset filtri' mod='productadvancedmanager'}
+                                    </a>
+                                {/if}
                             </td>
                         </tr>
                     {/if}
@@ -263,7 +266,7 @@
 </div>
 
 <!-- Notifica -->
-<div id="pam-notification" class="alert" style="display:none; position:fixed; top:70px; right:20px; z-index:9999; min-width:250px;"></div>
+<div id="pam-notification" class="alert" style="display:none; position:fixed; top:20px; right:20px; z-index:9999; min-width:280px; max-width:400px;"></div>
 
 {literal}
 <script type="text/javascript">
