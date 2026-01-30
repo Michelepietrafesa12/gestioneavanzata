@@ -60,7 +60,9 @@ class AdminProductAdvancedController extends ModuleAdminController
     private function ajaxResponse(array $data)
     {
         header('Content-Type: application/json');
-        ob_end_clean();
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
         echo json_encode($data);
         exit;
     }
