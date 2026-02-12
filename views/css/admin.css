@@ -12,21 +12,29 @@
 
 #product-advanced-manager .panel-heading {
     background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-    color: #fff;
+    color: #fff !important;
     border-radius: 4px 4px 0 0;
     padding: 14px 20px;
     font-size: 15px;
+}
+
+#product-advanced-manager .panel-heading i,
+#product-advanced-manager .panel-heading span,
+#product-advanced-manager .panel-heading a {
+    color: #fff !important;
 }
 
 #product-advanced-manager .panel-heading .badge {
     margin-left: 10px;
     font-size: 12px;
     padding: 4px 8px;
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.25);
+    color: #fff !important;
 }
 
 #product-advanced-manager .panel-heading .badge-danger {
     background: #e74c3c !important;
+    color: #fff !important;
 }
 
 #product-advanced-manager .panel-heading .btn {
