@@ -165,7 +165,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $offset = ($page - 1) * $perPage;
 
         $sql = new DbQuery();
-        $sql->select('p.id_product, p.reference, p.price, p.id_tax_rules_group, p.weight, p.width, p.height, p.depth, p.active, pl.name');
+        $sql->select('p.id_product, p.reference, p.ean13, p.price, p.id_tax_rules_group, p.weight, p.width, p.height, p.depth, p.active, pl.name');
         $sql->select('IFNULL(sa.quantity, 0) as quantity, sa.id_stock_available');
         $sql->select('cl.name as category_name');
         // Fix: join image filtrata per shop
@@ -561,13 +561,16 @@ class AdminProductAdvancedController extends ModuleAdminController
         }
 
         // Campi consentiti
-        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact', 'expiration_date'];
+        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact', 'expiration_date', 'ean13', 'reference'];
         if (!in_array($field, $allowedFields)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Campo non valido')]);
         }
 
+        // Campi testuali (non richiedono validazione numerica)
+        $textFields = ['expiration_date', 'ean13', 'reference'];
+
         // Validazione valore
-        if ($field !== 'expiration_date' && !is_numeric($value)) {
+        if (!in_array($field, $textFields) && !is_numeric($value)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Valore non valido')]);
         }
 
@@ -575,6 +578,20 @@ class AdminProductAdvancedController extends ModuleAdminController
             // Accetta stringa vuota (rimozione data) o formato YYYY-MM-DD
             if (!empty($value) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
                 $this->ajaxResponse(['success' => false, 'message' => $this->l('Formato data non valido')]);
+            }
+        }
+
+        if ($field === 'ean13') {
+            // Accetta stringa vuota o 13 cifre
+            if (!empty($value) && !preg_match('/^\d{13}$/', $value)) {
+                $this->ajaxResponse(['success' => false, 'message' => $this->l('EAN deve essere di 13 cifre')]);
+            }
+        }
+
+        if ($field === 'reference') {
+            // Lunghezza massima 64 caratteri
+            if (strlen($value) > 64) {
+                $this->ajaxResponse(['success' => false, 'message' => $this->l('Riferimento troppo lungo (max 64 caratteri)')]);
             }
         }
 
@@ -609,6 +626,24 @@ class AdminProductAdvancedController extends ModuleAdminController
                 }
 
                 $displayValue = $dateValue ?: '';
+            } elseif ($field === 'ean13') {
+                $ean = pSQL(trim($value));
+
+                Db::getInstance()->update('product', [
+                    'ean13' => $ean,
+                ], 'id_product = ' . $idProduct);
+
+                $result = true;
+                $displayValue = $ean;
+            } elseif ($field === 'reference') {
+                $ref = pSQL(trim($value));
+
+                Db::getInstance()->update('product', [
+                    'reference' => $ref,
+                ], 'id_product = ' . $idProduct);
+
+                $result = true;
+                $displayValue = $ref;
             } elseif ($field === 'quantity') {
                 $quantity = (int) $value;
 
@@ -731,6 +766,25 @@ class AdminProductAdvancedController extends ModuleAdminController
                             'expiration_date' => $dateValue,
                         ]);
                     }
+                    $updated++;
+                } elseif ($field === 'ean13') {
+                    $ean = pSQL(trim($value));
+                    // Validazione: vuoto o 13 cifre
+                    if (!empty($ean) && !preg_match('/^\d{13}$/', $ean)) {
+                        continue;
+                    }
+                    Db::getInstance()->update('product', [
+                        'ean13' => $ean,
+                    ], 'id_product = ' . $idProduct);
+                    $updated++;
+                } elseif ($field === 'reference') {
+                    $ref = pSQL(trim($value));
+                    if (strlen($ref) > 64) {
+                        continue;
+                    }
+                    Db::getInstance()->update('product', [
+                        'reference' => $ref,
+                    ], 'id_product = ' . $idProduct);
                     $updated++;
                 } elseif ($field === 'quantity') {
                     $quantity = (int) $value;

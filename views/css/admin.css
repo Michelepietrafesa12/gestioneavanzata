@@ -158,13 +158,14 @@
 /* === LARGHEZZE COLONNE === */
 .pam-col-id { width: 60px; }
 .pam-col-img { width: 55px; }
-.pam-col-name { min-width: 180px; max-width: 280px; }
-.pam-col-ref { width: 110px; }
-.pam-col-price { width: 100px; }
-.pam-col-stock { width: 85px; }
-.pam-col-dim { width: 90px; }
-.pam-col-date { width: 150px; }
-.pam-col-actions { width: 55px; }
+.pam-col-name { min-width: 160px; max-width: 250px; }
+.pam-col-ref { width: 120px; }
+.pam-col-ean { width: 130px; }
+.pam-col-price { width: 95px; }
+.pam-col-stock { width: 80px; }
+.pam-col-dim { width: 85px; }
+.pam-col-date { width: 140px; }
+.pam-col-actions { width: 50px; }
 
 /* Nome prodotto: leggibile con ellipsis */
 .pam-col-name {
@@ -223,9 +224,25 @@
 
 /* Input data scadenza */
 .pam-col-date .pam-input {
-    width: 140px !important;
+    width: 130px !important;
     font-size: 12px !important;
     padding: 6px 4px !important;
+}
+
+/* Input testuali (reference, EAN) */
+.pam-input-text {
+    text-align: left !important;
+    font-family: monospace !important;
+    font-size: 12px !important;
+    letter-spacing: 0.3px;
+}
+
+.pam-col-ref .pam-input {
+    width: 110px !important;
+}
+
+.pam-col-ean .pam-input {
+    width: 120px !important;
 }
 
 /* === STATI INPUT === */
@@ -489,34 +506,46 @@
 /* === RESPONSIVE === */
 @media (max-width: 1400px) {
     .pam-col-name {
-        max-width: 160px;
+        max-width: 140px;
     }
     .pam-input {
-        width: 72px !important;
+        width: 68px !important;
     }
     .pam-col-price .pam-input {
-        width: 78px !important;
+        width: 75px !important;
     }
     .pam-col-date .pam-input {
-        width: 130px !important;
+        width: 120px !important;
+    }
+    .pam-col-ref .pam-input {
+        width: 95px !important;
+    }
+    .pam-col-ean .pam-input {
+        width: 105px !important;
     }
 }
 
 @media (max-width: 1200px) {
     .pam-col-name {
-        max-width: 120px;
+        max-width: 100px;
     }
     #pam-table td,
     #pam-table thead th {
-        padding: 8px 5px;
+        padding: 8px 4px;
     }
     .pam-input {
-        width: 65px !important;
+        width: 60px !important;
         height: 30px !important;
-        font-size: 12px !important;
-        padding: 4px 6px !important;
+        font-size: 11px !important;
+        padding: 4px 5px !important;
     }
     .pam-col-date .pam-input {
-        width: 120px !important;
+        width: 110px !important;
+    }
+    .pam-col-ref .pam-input {
+        width: 85px !important;
+    }
+    .pam-col-ean .pam-input {
+        width: 95px !important;
     }
 }

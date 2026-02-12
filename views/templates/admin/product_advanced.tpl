@@ -120,6 +120,7 @@
                         <th class="pam-col-img">{l s='Img' mod='productadvancedmanager'}</th>
                         <th class="pam-col-name">{l s='Prodotto' mod='productadvancedmanager'}</th>
                         <th class="pam-col-ref">{l s='Rif.' mod='productadvancedmanager'}</th>
+                        <th class="pam-col-ean">{l s='EAN13' mod='productadvancedmanager'}</th>
                         <th class="pam-col-price text-center">{l s='Prezzo' mod='productadvancedmanager'} <small>(€)</small></th>
                         <th class="pam-col-stock text-center">{l s='Stock' mod='productadvancedmanager'}</th>
                         <th class="pam-col-dim text-center">{l s='Peso' mod='productadvancedmanager'} <small>(kg)</small></th>
@@ -159,7 +160,18 @@
                                     {$product.name|escape:'html':'UTF-8'}
                                 </td>
                                 <td class="pam-col-ref">
-                                    <code>{$product.reference|escape:'html':'UTF-8'}</code>
+                                    <input type="text" class="form-control input-sm pam-input pam-input-text"
+                                           value="{$product.reference|escape:'html':'UTF-8'}"
+                                           data-original="{$product.reference|escape:'html':'UTF-8'}"
+                                           data-id="{$product.id_product}" data-attr="0" data-field="reference"
+                                           maxlength="64" placeholder="Rif.">
+                                </td>
+                                <td class="pam-col-ean">
+                                    <input type="text" class="form-control input-sm pam-input pam-input-text"
+                                           value="{$product.ean13|escape:'html':'UTF-8'}"
+                                           data-original="{$product.ean13|escape:'html':'UTF-8'}"
+                                           data-id="{$product.id_product}" data-attr="0" data-field="ean13"
+                                           maxlength="13" placeholder="EAN13" pattern="\d{13}">
                                 </td>
                                 <td class="pam-col-price text-center">
                                     <input type="number" class="form-control input-sm pam-input" 
@@ -219,7 +231,7 @@
                         {/foreach}
                     {else}
                         <tr>
-                            <td colspan="12" class="text-center pam-empty-state">
+                            <td colspan="13" class="text-center pam-empty-state">
                                 <i class="icon-inbox"></i>
                                 <p>{l s='Nessun prodotto trovato' mod='productadvancedmanager'}</p>
                                 {if $stock_filter != '' || $active_filter != '' || $expiration_filter != '' || $search != '' || $category_filter > 0}
@@ -399,7 +411,8 @@
             '<td class="pam-col-id"><small class="text-muted">↳</small></td>' +
             '<td class="pam-col-img"></td>' +
             '<td class="pam-col-name" style="padding-left:20px;font-style:italic;color:#666;">' + escHtml(name) + '</td>' +
-            '<td class="pam-col-ref"><code>' + escHtml(ref) + '</code></td>' +
+            '<td class="pam-col-ref text-muted"><small>' + escHtml(ref) + '</small></td>' +
+            '<td class="pam-col-ean text-muted">-</td>' +
             '<td class="pam-col-price text-center text-muted">-</td>' +
             '<td class="pam-col-stock text-center"><input type="number" class="' + inputClass + '" value="' + qty + '" data-original="' + qty + '" data-id="' + idProduct + '" data-attr="' + idAttr + '" data-field="quantity" step="1" min="0"></td>' +
             '<td class="pam-col-dim text-center text-muted">-</td>' +
