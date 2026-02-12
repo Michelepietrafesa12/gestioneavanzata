@@ -1,4 +1,4 @@
-{**
+{*
  * Template Gestione Avanzata Prodotti
  * @version 2.2.0
  *}
