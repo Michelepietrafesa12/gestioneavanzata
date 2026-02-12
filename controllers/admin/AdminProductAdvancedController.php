@@ -107,18 +107,17 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Nuovi filtri
         $stockFilter = Tools::getValue('stock_filter', ''); // '', '0', 'low'
         $activeFilter = Tools::getValue('active_filter', ''); // '', '1', '0'
-        $expirationFilter = Tools::getValue('expiration_filter', ''); // '', 'expired', '30', '90', 'no_date', 'has_date'
 
         // Validazione
-        $allowedOrderBy = ['id_product', 'name', 'reference', 'weight', 'width', 'height', 'depth', 'quantity', 'expiration_date'];
+        $allowedOrderBy = ['id_product', 'name', 'reference', 'weight', 'width', 'height', 'depth', 'quantity'];
         if (!in_array($orderBy, $allowedOrderBy)) {
             $orderBy = 'id_product';
         }
         $orderWay = strtoupper($orderWay) === 'ASC' ? 'ASC' : 'DESC';
 
         // Dati
-        $products = $this->getProducts($page, $perPage, $search, $categoryFilter, $orderBy, $orderWay, $stockFilter, $activeFilter, $expirationFilter);
-        $totalProducts = $this->getTotalProducts($search, $categoryFilter, $stockFilter, $activeFilter, $expirationFilter);
+        $products = $this->getProducts($page, $perPage, $search, $categoryFilter, $orderBy, $orderWay, $stockFilter, $activeFilter);
+        $totalProducts = $this->getTotalProducts($search, $categoryFilter, $stockFilter, $activeFilter);
         $totalPages = max(1, ceil($totalProducts / $perPage));
 
         if ($page > $totalPages) {
@@ -131,12 +130,14 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Conta prodotti a stock 0 per badge (con cache)
         $outOfStockCount = $this->getOutOfStockCount();
 
-        // Configurazione colonne visibili
+        // Configurazione colonne visibili (scadenza disabilitata)
         $module = Module::getInstanceByName('productadvancedmanager');
         $columns = $module ? $module->getColumnsConfig() : [
             'reference' => 1, 'ean' => 1, 'price' => 1, 'stock' => 1,
             'weight' => 1, 'dimensions' => 1, 'expiration' => 0
         ];
+        // Forza disabilitazione scadenza
+        $columns['expiration'] = 0;
 
         // Assegna al template
         $this->context->smarty->assign([
@@ -152,7 +153,7 @@ class AdminProductAdvancedController extends ModuleAdminController
             'order_way' => $orderWay,
             'stock_filter' => $stockFilter,
             'active_filter' => $activeFilter,
-            'expiration_filter' => $expirationFilter,
+            'expiration_filter' => '',
             'out_of_stock_count' => $outOfStockCount,
             'columns' => $columns,
             'ajax_url' => $this->context->link->getAdminLink('AdminProductAdvanced'),
@@ -166,7 +167,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         $this->context->smarty->assign('content', $this->content);
     }
 
-    private function getProducts($page, $perPage, $search = '', $categoryId = 0, $orderBy = 'id_product', $orderWay = 'DESC', $stockFilter = '', $activeFilter = '', $expirationFilter = '')
+    private function getProducts($page, $perPage, $search = '', $categoryId = 0, $orderBy = 'id_product', $orderWay = 'DESC', $stockFilter = '', $activeFilter = '')
     {
         $langId = (int) $this->context->language->id;
         $shopId = (int) $this->context->shop->id;
@@ -178,8 +179,6 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->select('cl.name as category_name');
         // Fix: join image filtrata per shop
         $sql->select('IFNULL(ish.id_image, i.id_image) as id_image');
-        // Data di scadenza
-        $sql->select('ped.expiration_date');
         $sql->from('product', 'p');
         $sql->innerJoin('product_shop', 'ps', 'ps.id_product = p.id_product AND ps.id_shop = ' . (int)$shopId);
         $sql->leftJoin('product_lang', 'pl', 'pl.id_product = p.id_product AND pl.id_lang = ' . (int)$langId . ' AND pl.id_shop = ' . (int)$shopId);
@@ -188,8 +187,6 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Image con filtro shop (image_shop ha priorità, fallback su image.cover)
         $sql->leftJoin('image_shop', 'ish', 'ish.id_product = p.id_product AND ish.cover = 1 AND ish.id_shop = ' . (int)$shopId);
         $sql->leftJoin('image', 'i', 'i.id_product = p.id_product AND i.cover = 1 AND ish.id_image IS NULL');
-        // Join tabella scadenza
-        $sql->leftJoin('product_expiration_date', 'ped', 'ped.id_product = p.id_product');
 
         if (!empty($search)) {
             $searchSafe = pSQL($search);
@@ -216,26 +213,11 @@ class AdminProductAdvancedController extends ModuleAdminController
             $sql->where('ps.active = 0');
         }
 
-        // Filtro Scadenza
-        if ($expirationFilter === 'expired') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date < CURDATE()');
-        } elseif ($expirationFilter === '30') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)');
-        } elseif ($expirationFilter === '90') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)');
-        } elseif ($expirationFilter === 'no_date') {
-            $sql->where('ped.expiration_date IS NULL');
-        } elseif ($expirationFilter === 'has_date') {
-            $sql->where('ped.expiration_date IS NOT NULL');
-        }
-
         // Ordinamento
         if ($orderBy === 'name') {
             $sql->orderBy('pl.name ' . $orderWay);
         } elseif ($orderBy === 'quantity') {
             $sql->orderBy('quantity ' . $orderWay);
-        } elseif ($orderBy === 'expiration_date') {
-            $sql->orderBy('ped.expiration_date ' . $orderWay);
         } else {
             $sql->orderBy('p.' . $orderBy . ' ' . $orderWay);
         }
@@ -399,7 +381,7 @@ class AdminProductAdvancedController extends ModuleAdminController
         return $cache;
     }
 
-    private function getTotalProducts($search = '', $categoryId = 0, $stockFilter = '', $activeFilter = '', $expirationFilter = '')
+    private function getTotalProducts($search = '', $categoryId = 0, $stockFilter = '', $activeFilter = '')
     {
         $shopId = (int) $this->context->shop->id;
         $langId = (int) $this->context->language->id;
@@ -410,7 +392,6 @@ class AdminProductAdvancedController extends ModuleAdminController
         $sql->innerJoin('product_shop', 'ps', 'ps.id_product = p.id_product AND ps.id_shop = ' . (int)$shopId);
         $sql->leftJoin('product_lang', 'pl', 'pl.id_product = p.id_product AND pl.id_lang = ' . (int)$langId . ' AND pl.id_shop = ' . (int)$shopId);
         $sql->leftJoin('stock_available', 'sa', 'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int)$shopId);
-        $sql->leftJoin('product_expiration_date', 'ped', 'ped.id_product = p.id_product');
 
         if (!empty($search)) {
             $searchSafe = pSQL($search);
@@ -434,19 +415,6 @@ class AdminProductAdvancedController extends ModuleAdminController
             $sql->where('ps.active = 1');
         } elseif ($activeFilter === '0') {
             $sql->where('ps.active = 0');
-        }
-
-        // Filtro Scadenza
-        if ($expirationFilter === 'expired') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date < CURDATE()');
-        } elseif ($expirationFilter === '30') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)');
-        } elseif ($expirationFilter === '90') {
-            $sql->where('ped.expiration_date IS NOT NULL AND ped.expiration_date >= CURDATE() AND ped.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)');
-        } elseif ($expirationFilter === 'no_date') {
-            $sql->where('ped.expiration_date IS NULL');
-        } elseif ($expirationFilter === 'has_date') {
-            $sql->where('ped.expiration_date IS NOT NULL');
         }
 
         return (int) Db::getInstance()->getValue($sql);
@@ -569,24 +537,17 @@ class AdminProductAdvancedController extends ModuleAdminController
         }
 
         // Campi consentiti
-        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact', 'expiration_date', 'ean13', 'reference'];
+        $allowedFields = ['price', 'weight', 'width', 'height', 'depth', 'quantity', 'price_impact', 'ean13', 'reference'];
         if (!in_array($field, $allowedFields)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Campo non valido')]);
         }
 
         // Campi testuali (non richiedono validazione numerica)
-        $textFields = ['expiration_date', 'ean13', 'reference'];
+        $textFields = ['ean13', 'reference'];
 
         // Validazione valore
         if (!in_array($field, $textFields) && !is_numeric($value)) {
             $this->ajaxResponse(['success' => false, 'message' => $this->l('Valore non valido')]);
-        }
-
-        if ($field === 'expiration_date') {
-            // Accetta stringa vuota (rimozione data) o formato YYYY-MM-DD
-            if (!empty($value) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-                $this->ajaxResponse(['success' => false, 'message' => $this->l('Formato data non valido')]);
-            }
         }
 
         if ($field === 'ean13') {
@@ -612,29 +573,7 @@ class AdminProductAdvancedController extends ModuleAdminController
             $shopId = (int) $this->context->shop->id;
             $displayValue = null;
 
-            if ($field === 'expiration_date') {
-                $dateValue = empty($value) ? null : pSQL($value);
-
-                // Controlla se esiste già un record
-                $exists = (int) Db::getInstance()->getValue(
-                    'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_expiration_date WHERE id_product = ' . $idProduct
-                );
-
-                if ($dateValue === null) {
-                    $result = Db::getInstance()->delete('product_expiration_date', 'id_product = ' . $idProduct);
-                } elseif ($exists) {
-                    $result = Db::getInstance()->update('product_expiration_date', [
-                        'expiration_date' => $dateValue,
-                    ], 'id_product = ' . $idProduct);
-                } else {
-                    $result = Db::getInstance()->insert('product_expiration_date', [
-                        'id_product' => $idProduct,
-                        'expiration_date' => $dateValue,
-                    ]);
-                }
-
-                $displayValue = $dateValue ?: '';
-            } elseif ($field === 'ean13') {
+            if ($field === 'ean13') {
                 $ean = pSQL(trim($value));
 
                 Db::getInstance()->update('product', [
@@ -754,28 +693,7 @@ class AdminProductAdvancedController extends ModuleAdminController
             if (!$idProduct) continue;
 
             foreach ($fields as $field => $value) {
-                if ($field === 'expiration_date') {
-                    $dateValue = empty($value) ? null : pSQL($value);
-                    if ($dateValue !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateValue)) {
-                        continue;
-                    }
-                    $exists = (int) Db::getInstance()->getValue(
-                        'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product_expiration_date WHERE id_product = ' . $idProduct
-                    );
-                    if ($dateValue === null) {
-                        Db::getInstance()->delete('product_expiration_date', 'id_product = ' . $idProduct);
-                    } elseif ($exists) {
-                        Db::getInstance()->update('product_expiration_date', [
-                            'expiration_date' => $dateValue,
-                        ], 'id_product = ' . $idProduct);
-                    } else {
-                        Db::getInstance()->insert('product_expiration_date', [
-                            'id_product' => $idProduct,
-                            'expiration_date' => $dateValue,
-                        ]);
-                    }
-                    $updated++;
-                } elseif ($field === 'ean13') {
+                if ($field === 'ean13') {
                     $ean = pSQL(trim($value));
                     // Validazione: vuoto o da 8 a 13 cifre
                     if (!empty($ean) && !preg_match('/^\d{8,13}$/', $ean)) {
