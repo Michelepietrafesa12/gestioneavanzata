@@ -51,6 +51,7 @@
                         {/foreach}
                     </select>
                 </div>
+                {if $columns.stock}
                 <div class="col-md-2">
                     <select name="stock_filter" class="form-control" onchange="this.form.submit()">
                         <option value="">{l s='Tutto lo stock' mod='productadvancedmanager'}</option>
@@ -58,6 +59,7 @@
                         <option value="low"{if $stock_filter == 'low'} selected{/if}>{l s='Stock basso (1-5)' mod='productadvancedmanager'}</option>
                     </select>
                 </div>
+                {/if}
                 <div class="col-md-2">
                     <select name="active_filter" class="form-control" onchange="this.form.submit()">
                         <option value="">{l s='Tutti i prodotti' mod='productadvancedmanager'}</option>
@@ -80,6 +82,7 @@
                     </button>
                 </div>
             </div>
+            {if $columns.expiration}
             <div class="row" style="margin-bottom: 10px;">
                 <div class="col-md-3">
                     <select name="expiration_filter" class="form-control" onchange="this.form.submit()">
@@ -92,9 +95,10 @@
                     </select>
                 </div>
             </div>
+            {/if}
             
             {* Filtro rapido per stock 0 attivi *}
-            {if $stock_filter != '0' || $active_filter != '1' || $expiration_filter != ''}
+            {if $columns.stock && ($stock_filter != '0' || $active_filter != '1' || $expiration_filter != '')}
             <div class="row" style="margin-bottom:12px; padding-top:8px; border-top:1px solid #eee;">
                 <div class="col-md-12">
                     <a href="index.php?controller=AdminProductAdvanced&token={$token|escape:'html':'UTF-8'}&stock_filter=0&active_filter=1" class="btn btn-xs btn-danger">
@@ -119,15 +123,17 @@
                         <th class="pam-col-id">ID</th>
                         <th class="pam-col-img">{l s='Img' mod='productadvancedmanager'}</th>
                         <th class="pam-col-name">{l s='Prodotto' mod='productadvancedmanager'}</th>
-                        <th class="pam-col-ref">{l s='Rif.' mod='productadvancedmanager'}</th>
-                        <th class="pam-col-ean">{l s='EAN' mod='productadvancedmanager'}</th>
-                        <th class="pam-col-price text-center">{l s='Prezzo' mod='productadvancedmanager'} <small>(€)</small></th>
-                        <th class="pam-col-stock text-center">{l s='Stock' mod='productadvancedmanager'}</th>
-                        <th class="pam-col-dim text-center">{l s='Peso' mod='productadvancedmanager'} <small>(kg)</small></th>
+                        {if $columns.reference}<th class="pam-col-ref">{l s='Rif.' mod='productadvancedmanager'}</th>{/if}
+                        {if $columns.ean}<th class="pam-col-ean">{l s='EAN' mod='productadvancedmanager'}</th>{/if}
+                        {if $columns.price}<th class="pam-col-price text-center">{l s='Prezzo' mod='productadvancedmanager'} <small>(€)</small></th>{/if}
+                        {if $columns.stock}<th class="pam-col-stock text-center">{l s='Stock' mod='productadvancedmanager'}</th>{/if}
+                        {if $columns.weight}<th class="pam-col-dim text-center">{l s='Peso' mod='productadvancedmanager'} <small>(kg)</small></th>{/if}
+                        {if $columns.dimensions}
                         <th class="pam-col-dim text-center">{l s='Larg.' mod='productadvancedmanager'} <small>(cm)</small></th>
                         <th class="pam-col-dim text-center">{l s='Alt.' mod='productadvancedmanager'} <small>(cm)</small></th>
                         <th class="pam-col-dim text-center">{l s='Prof.' mod='productadvancedmanager'} <small>(cm)</small></th>
-                        <th class="pam-col-date text-center">{l s='Scadenza' mod='productadvancedmanager'}</th>
+                        {/if}
+                        {if $columns.expiration}<th class="pam-col-date text-center">{l s='Scadenza' mod='productadvancedmanager'}</th>{/if}
                         <th class="pam-col-actions">{l s='Azioni' mod='productadvancedmanager'}</th>
                     </tr>
                 </thead>
@@ -159,6 +165,7 @@
                                 <td class="pam-col-name" title="{$product.name|escape:'html':'UTF-8'}">
                                     {$product.name|escape:'html':'UTF-8'}
                                 </td>
+                                {if $columns.reference}
                                 <td class="pam-col-ref">
                                     <input type="text" class="form-control input-sm pam-input pam-input-text"
                                            value="{$product.reference|escape:'html':'UTF-8'}"
@@ -166,6 +173,8 @@
                                            data-id="{$product.id_product}" data-attr="0" data-field="reference"
                                            maxlength="64" placeholder="Rif.">
                                 </td>
+                                {/if}
+                                {if $columns.ean}
                                 <td class="pam-col-ean">
                                     <input type="text" class="form-control input-sm pam-input pam-input-text"
                                            value="{$product.ean13|escape:'html':'UTF-8'}"
@@ -173,54 +182,65 @@
                                            data-id="{$product.id_product}" data-attr="0" data-field="ean13"
                                            maxlength="13" placeholder="EAN" pattern="\d{8,13}">
                                 </td>
+                                {/if}
+                                {if $columns.price}
                                 <td class="pam-col-price text-center">
-                                    <input type="number" class="form-control input-sm pam-input" 
+                                    <input type="number" class="form-control input-sm pam-input"
                                            value="{$product.price_tax_incl|string_format:"%.2f"}"
                                            data-original="{$product.price_tax_incl|string_format:"%.2f"}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="price"
                                            step="0.01" min="0">
                                 </td>
+                                {/if}
+                                {if $columns.stock}
                                 <td class="pam-col-stock text-center">
-                                    <input type="number" class="form-control input-sm pam-input{if $product.quantity == 0} pam-stock-zero{/if}" 
+                                    <input type="number" class="form-control input-sm pam-input{if $product.quantity == 0} pam-stock-zero{/if}"
                                            value="{$product.quantity|intval}"
                                            data-original="{$product.quantity|intval}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="quantity"
                                            step="1" min="0">
                                 </td>
+                                {/if}
+                                {if $columns.weight}
                                 <td class="pam-col-dim text-center">
-                                    <input type="number" class="form-control input-sm pam-input" 
+                                    <input type="number" class="form-control input-sm pam-input"
                                            value="{$product.weight|string_format:"%.2f"}"
                                            data-original="{$product.weight|string_format:"%.2f"}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="weight"
                                            step="0.01" min="0">
                                 </td>
+                                {/if}
+                                {if $columns.dimensions}
                                 <td class="pam-col-dim text-center">
-                                    <input type="number" class="form-control input-sm pam-input" 
+                                    <input type="number" class="form-control input-sm pam-input"
                                            value="{$product.width|string_format:"%.2f"}"
                                            data-original="{$product.width|string_format:"%.2f"}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="width"
                                            step="0.01" min="0">
                                 </td>
                                 <td class="pam-col-dim text-center">
-                                    <input type="number" class="form-control input-sm pam-input" 
+                                    <input type="number" class="form-control input-sm pam-input"
                                            value="{$product.height|string_format:"%.2f"}"
                                            data-original="{$product.height|string_format:"%.2f"}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="height"
                                            step="0.01" min="0">
                                 </td>
                                 <td class="pam-col-dim text-center">
-                                    <input type="number" class="form-control input-sm pam-input" 
+                                    <input type="number" class="form-control input-sm pam-input"
                                            value="{$product.depth|string_format:"%.2f"}"
                                            data-original="{$product.depth|string_format:"%.2f"}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="depth"
                                            step="0.01" min="0">
                                 </td>
+                                {/if}
+                                {if $columns.expiration}
                                 <td class="pam-col-date text-center">
                                     <input type="date" class="form-control input-sm pam-input{if $product.expiration_date && $product.expiration_date <= $smarty.now|date_format:'%Y-%m-%d'} pam-stock-zero{elseif $product.expiration_date && $product.expiration_date <= ($smarty.now + 7776000)|date_format:'%Y-%m-%d'} pam-expiring-soon{/if}"
                                            value="{if $product.expiration_date}{$product.expiration_date|escape:'html':'UTF-8'}{/if}"
                                            data-original="{if $product.expiration_date}{$product.expiration_date|escape:'html':'UTF-8'}{/if}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="expiration_date">
                                 </td>
+                                {/if}
                                 <td class="pam-col-actions text-center">
                                     <a href="{$link->getAdminLink('AdminProducts')}&id_product={$product.id_product}&updateproduct"
                                        class="btn btn-default btn-xs" target="_blank" title="{l s='Modifica' mod='productadvancedmanager'}">
@@ -231,7 +251,16 @@
                         {/foreach}
                     {else}
                         <tr>
-                            <td colspan="13" class="text-center pam-empty-state">
+                            {* Calcola colspan dinamico: 4 fisse + colonne opzionali *}
+                            {assign var="colspan" value=4}
+                            {if $columns.reference}{assign var="colspan" value=$colspan+1}{/if}
+                            {if $columns.ean}{assign var="colspan" value=$colspan+1}{/if}
+                            {if $columns.price}{assign var="colspan" value=$colspan+1}{/if}
+                            {if $columns.stock}{assign var="colspan" value=$colspan+1}{/if}
+                            {if $columns.weight}{assign var="colspan" value=$colspan+1}{/if}
+                            {if $columns.dimensions}{assign var="colspan" value=$colspan+3}{/if}
+                            {if $columns.expiration}{assign var="colspan" value=$colspan+1}{/if}
+                            <td colspan="{$colspan}" class="text-center pam-empty-state">
                                 <i class="icon-inbox"></i>
                                 <p>{l s='Nessun prodotto trovato' mod='productadvancedmanager'}</p>
                                 {if $stock_filter != '' || $active_filter != '' || $expiration_filter != '' || $search != '' || $category_filter > 0}
@@ -284,6 +313,7 @@
 <script type="text/javascript">
 (function() {
     var ajaxUrl = '{/literal}{$ajax_url|escape:'javascript':'UTF-8'}{literal}';
+    var columns = {/literal}{$columns|json_encode}{literal};
     var changes = {};
     var expandedProducts = {};
 
@@ -407,21 +437,19 @@
         var inputClass = 'form-control input-sm pam-input' + (qty === 0 ? ' pam-stock-zero' : '');
         
         // Per le varianti: solo Quantità è editabile
-        return '<tr class="' + rowClass + '" data-parent="' + idProduct + '">' +
+        var html = '<tr class="' + rowClass + '" data-parent="' + idProduct + '">' +
             '<td class="pam-col-id"><small class="text-muted">↳</small></td>' +
             '<td class="pam-col-img"></td>' +
-            '<td class="pam-col-name" style="padding-left:20px;font-style:italic;color:#666;">' + escHtml(name) + '</td>' +
-            '<td class="pam-col-ref text-muted"><small>' + escHtml(ref) + '</small></td>' +
-            '<td class="pam-col-ean text-muted">-</td>' +
-            '<td class="pam-col-price text-center text-muted">-</td>' +
-            '<td class="pam-col-stock text-center"><input type="number" class="' + inputClass + '" value="' + qty + '" data-original="' + qty + '" data-id="' + idProduct + '" data-attr="' + idAttr + '" data-field="quantity" step="1" min="0"></td>' +
-            '<td class="pam-col-dim text-center text-muted">-</td>' +
-            '<td class="pam-col-dim text-center text-muted">-</td>' +
-            '<td class="pam-col-dim text-center text-muted">-</td>' +
-            '<td class="pam-col-dim text-center text-muted">-</td>' +
-            '<td class="pam-col-date text-center text-muted">-</td>' +
-            '<td class="pam-col-actions"></td>' +
-        '</tr>';
+            '<td class="pam-col-name" style="padding-left:20px;font-style:italic;color:#666;">' + escHtml(name) + '</td>';
+        if (columns.reference) html += '<td class="pam-col-ref text-muted"><small>' + escHtml(ref) + '</small></td>';
+        if (columns.ean) html += '<td class="pam-col-ean text-muted">-</td>';
+        if (columns.price) html += '<td class="pam-col-price text-center text-muted">-</td>';
+        if (columns.stock) html += '<td class="pam-col-stock text-center"><input type="number" class="' + inputClass + '" value="' + qty + '" data-original="' + qty + '" data-id="' + idProduct + '" data-attr="' + idAttr + '" data-field="quantity" step="1" min="0"></td>';
+        if (columns.weight) html += '<td class="pam-col-dim text-center text-muted">-</td>';
+        if (columns.dimensions) html += '<td class="pam-col-dim text-center text-muted">-</td><td class="pam-col-dim text-center text-muted">-</td><td class="pam-col-dim text-center text-muted">-</td>';
+        if (columns.expiration) html += '<td class="pam-col-date text-center text-muted">-</td>';
+        html += '<td class="pam-col-actions"></td></tr>';
+        return html;
     }
 
     function escHtml(t) {

@@ -131,6 +131,13 @@ class AdminProductAdvancedController extends ModuleAdminController
         // Conta prodotti a stock 0 per badge (con cache)
         $outOfStockCount = $this->getOutOfStockCount();
 
+        // Configurazione colonne visibili
+        $module = Module::getInstanceByName('productadvancedmanager');
+        $columns = $module ? $module->getColumnsConfig() : [
+            'reference' => 1, 'ean' => 1, 'price' => 1, 'stock' => 1,
+            'weight' => 1, 'dimensions' => 1, 'expiration' => 0
+        ];
+
         // Assegna al template
         $this->context->smarty->assign([
             'products' => $products,
@@ -147,6 +154,7 @@ class AdminProductAdvancedController extends ModuleAdminController
             'active_filter' => $activeFilter,
             'expiration_filter' => $expirationFilter,
             'out_of_stock_count' => $outOfStockCount,
+            'columns' => $columns,
             'ajax_url' => $this->context->link->getAdminLink('AdminProductAdvanced'),
             'token' => Tools::getAdminTokenLite('AdminProductAdvanced'),
             'module_config_url' => $this->context->link->getAdminLink('AdminModules') . '&configure=productadvancedmanager',

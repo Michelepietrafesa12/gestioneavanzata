@@ -35,21 +35,34 @@ class ProductAdvancedManager extends Module
 
     public function install()
     {
+        // Colonne abilitate di default (tutte tranne scadenza)
+        $defaultColumns = json_encode([
+            'reference' => 1,
+            'ean' => 1,
+            'price' => 1,
+            'stock' => 1,
+            'weight' => 1,
+            'dimensions' => 1,
+            'expiration' => 0,  // Disabilitata di default
+        ]);
+
         return parent::install()
             && $this->installTab()
             && Configuration::updateValue('PAM_ALERT_EMAIL', Configuration::get('PS_SHOP_EMAIL'))
             && Configuration::updateValue('PAM_ALERT_ENABLED', 1)
             && Configuration::updateValue('PAM_ALERT_LAST_RUN', '')
-            && Configuration::updateValue('PAM_CRON_TOKEN', Tools::passwdGen(32));
+            && Configuration::updateValue('PAM_CRON_TOKEN', Tools::passwdGen(32))
+            && Configuration::updateValue('PAM_COLUMNS', $defaultColumns);
     }
 
     public function uninstall()
     {
-        return $this->uninstallTab() 
+        return $this->uninstallTab()
             && Configuration::deleteByName('PAM_ALERT_EMAIL')
             && Configuration::deleteByName('PAM_ALERT_ENABLED')
             && Configuration::deleteByName('PAM_ALERT_LAST_RUN')
             && Configuration::deleteByName('PAM_CRON_TOKEN')
+            && Configuration::deleteByName('PAM_COLUMNS')
             && parent::uninstall();
     }
 
@@ -90,7 +103,7 @@ class ProductAdvancedManager extends Module
     {
         $output = '';
 
-        // Salvataggio configurazione
+        // Salvataggio configurazione alert
         if (Tools::isSubmit('submitPamConfig')) {
             $email = Tools::getValue('PAM_ALERT_EMAIL');
             $enabled = (int) Tools::getValue('PAM_ALERT_ENABLED');
@@ -112,6 +125,21 @@ class ProductAdvancedManager extends Module
                 Configuration::updateValue('PAM_ALERT_ENABLED', $enabled);
                 $output .= $this->displayConfirmation($this->l('Impostazioni salvate'));
             }
+        }
+
+        // Salvataggio configurazione colonne
+        if (Tools::isSubmit('submitPamColumns')) {
+            $columns = [
+                'reference' => (int) Tools::getValue('PAM_COL_REFERENCE', 0),
+                'ean' => (int) Tools::getValue('PAM_COL_EAN', 0),
+                'price' => (int) Tools::getValue('PAM_COL_PRICE', 0),
+                'stock' => (int) Tools::getValue('PAM_COL_STOCK', 0),
+                'weight' => (int) Tools::getValue('PAM_COL_WEIGHT', 0),
+                'dimensions' => (int) Tools::getValue('PAM_COL_DIMENSIONS', 0),
+                'expiration' => (int) Tools::getValue('PAM_COL_EXPIRATION', 0),
+            ];
+            Configuration::updateValue('PAM_COLUMNS', json_encode($columns));
+            $output .= $this->displayConfirmation($this->l('Colonne aggiornate'));
         }
 
         // Test manuale
@@ -252,7 +280,76 @@ class ProductAdvancedManager extends Module
             </div>
         </div>';
 
-        return $form . $testPanel . $cronPanel . $linkPanel;
+        // Pannello Colonne
+        $columns = $this->getColumnsConfig();
+        $columnsPanel = '
+        <div class="panel">
+            <div class="panel-heading">
+                <i class="icon-columns"></i> ' . $this->l('Colonne Visibili') . '
+            </div>
+            <form method="post" action="' . AdminController::$currentIndex . '&configure=' . $this->name . '&token=' . Tools::getAdminTokenLite('AdminModules') . '">
+                <div class="panel-body">
+                    <p>' . $this->l('Seleziona le colonne da mostrare nella tabella prodotti:') . '</p>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_REFERENCE" value="1"' . ($columns['reference'] ? ' checked' : '') . '>
+                                    ' . $this->l('Riferimento') . '
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_EAN" value="1"' . ($columns['ean'] ? ' checked' : '') . '>
+                                    ' . $this->l('EAN') . '
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_PRICE" value="1"' . ($columns['price'] ? ' checked' : '') . '>
+                                    ' . $this->l('Prezzo') . '
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_STOCK" value="1"' . ($columns['stock'] ? ' checked' : '') . '>
+                                    ' . $this->l('Stock') . '
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_WEIGHT" value="1"' . ($columns['weight'] ? ' checked' : '') . '>
+                                    ' . $this->l('Peso') . '
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_DIMENSIONS" value="1"' . ($columns['dimensions'] ? ' checked' : '') . '>
+                                    ' . $this->l('Dimensioni (L x A x P)') . '
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="PAM_COL_EXPIRATION" value="1"' . ($columns['expiration'] ? ' checked' : '') . '>
+                                    ' . $this->l('Data Scadenza') . '
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-footer">
+                    <button type="submit" name="submitPamColumns" class="btn btn-default pull-right">
+                        <i class="process-icon-save"></i> ' . $this->l('Salva Colonne') . '
+                    </button>
+                </div>
+            </form>
+        </div>';
+
+        return $form . $columnsPanel . $testPanel . $cronPanel . $linkPanel;
     }
 
     /**
@@ -401,6 +498,32 @@ class ProductAdvancedManager extends Module
         ';
 
         return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    /**
+     * Recupera configurazione colonne visibili
+     */
+    public function getColumnsConfig()
+    {
+        $default = [
+            'reference' => 1,
+            'ean' => 1,
+            'price' => 1,
+            'stock' => 1,
+            'weight' => 1,
+            'dimensions' => 1,
+            'expiration' => 0,
+        ];
+
+        $config = Configuration::get('PAM_COLUMNS');
+        if (!empty($config)) {
+            $columns = json_decode($config, true);
+            if (is_array($columns)) {
+                return array_merge($default, $columns);
+            }
+        }
+
+        return $default;
     }
 
     /**
