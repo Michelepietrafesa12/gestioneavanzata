@@ -582,9 +582,9 @@ class AdminProductAdvancedController extends ModuleAdminController
         }
 
         if ($field === 'ean13') {
-            // Accetta stringa vuota o 13 cifre
-            if (!empty($value) && !preg_match('/^\d{13}$/', $value)) {
-                $this->ajaxResponse(['success' => false, 'message' => $this->l('EAN deve essere di 13 cifre')]);
+            // Accetta stringa vuota o da 8 a 13 cifre (EAN-8, EAN-13)
+            if (!empty($value) && !preg_match('/^\d{8,13}$/', $value)) {
+                $this->ajaxResponse(['success' => false, 'message' => $this->l('EAN deve essere da 8 a 13 cifre')]);
             }
         }
 
@@ -769,8 +769,8 @@ class AdminProductAdvancedController extends ModuleAdminController
                     $updated++;
                 } elseif ($field === 'ean13') {
                     $ean = pSQL(trim($value));
-                    // Validazione: vuoto o 13 cifre
-                    if (!empty($ean) && !preg_match('/^\d{13}$/', $ean)) {
+                    // Validazione: vuoto o da 8 a 13 cifre
+                    if (!empty($ean) && !preg_match('/^\d{8,13}$/', $ean)) {
                         continue;
                     }
                     Db::getInstance()->update('product', [

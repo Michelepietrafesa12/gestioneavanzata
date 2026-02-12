@@ -120,7 +120,7 @@
                         <th class="pam-col-img">{l s='Img' mod='productadvancedmanager'}</th>
                         <th class="pam-col-name">{l s='Prodotto' mod='productadvancedmanager'}</th>
                         <th class="pam-col-ref">{l s='Rif.' mod='productadvancedmanager'}</th>
-                        <th class="pam-col-ean">{l s='EAN13' mod='productadvancedmanager'}</th>
+                        <th class="pam-col-ean">{l s='EAN' mod='productadvancedmanager'}</th>
                         <th class="pam-col-price text-center">{l s='Prezzo' mod='productadvancedmanager'} <small>(€)</small></th>
                         <th class="pam-col-stock text-center">{l s='Stock' mod='productadvancedmanager'}</th>
                         <th class="pam-col-dim text-center">{l s='Peso' mod='productadvancedmanager'} <small>(kg)</small></th>
@@ -171,7 +171,7 @@
                                            value="{$product.ean13|escape:'html':'UTF-8'}"
                                            data-original="{$product.ean13|escape:'html':'UTF-8'}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="ean13"
-                                           maxlength="13" placeholder="EAN13" pattern="\d{13}">
+                                           maxlength="13" placeholder="EAN" pattern="\d{8,13}">
                                 </td>
                                 <td class="pam-col-price text-center">
                                     <input type="number" class="form-control input-sm pam-input" 
