@@ -180,7 +180,7 @@
                                            value="{$product.ean13|escape:'html':'UTF-8'}"
                                            data-original="{$product.ean13|escape:'html':'UTF-8'}"
                                            data-id="{$product.id_product}" data-attr="0" data-field="ean13"
-                                           maxlength="13" placeholder="EAN" pattern="\d{8,13}">
+                                           maxlength="13" placeholder="EAN" pattern="\d{ldelim}8,13{rdelim}">
                                 </td>
                                 {/if}
                                 {if $columns.price}
